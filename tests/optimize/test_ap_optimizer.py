@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 from copulae.core import corr2cov, near_psd
 from functools import lru_cache
-from nlopt import RoundoffLimited
+import nlopt
 
 from allopy.optimize import ASROptimizer, OptData
 from tests.optimize.setup import get_exp_wgt, read_A, read_corr, read_meta_data, read_sim_ret
@@ -239,7 +239,7 @@ def test_min_cvar(horizon, overweight):
             opt = (ASROptimizer(data, rebalance=REBALANCE).set_bounds(lb, ub).add_inequality_matrix_constraint(A, b))
             sol = opt.AP.min_cvar()
             break
-        except RoundoffLimited:
+        except nlopt.RoundoffLimited:
             pass
 
     assert_equal_or_better_solution(cvar(data), sol, exp_wgt, f'{target} {_id}', bigger_better=True)
@@ -261,7 +261,7 @@ def test_min_cvar_st_active_ret(horizon, overweight):
             opt = (ASROptimizer(data, rebalance=REBALANCE).set_bounds(lb, ub).add_inequality_matrix_constraint(A, b))
             sol = opt.AP.min_cvar(min_ret, True)
             break
-        except RoundoffLimited:
+        except nlopt.RoundoffLimited:
             pass
 
     assert_equal_or_better_solution(cvar(data), sol, exp_wgt, f'{target} {_id}', bigger_better=True,
