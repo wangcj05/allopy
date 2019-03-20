@@ -18,7 +18,7 @@ def run_setup():
     install_requires = [
         'copulae >=0.2',
         'numpy',
-        'nlopt >=2.5',
+        'nlopt >=2.4',
         'scipy >=1.1',
         'pandas >=0.23'
     ]
