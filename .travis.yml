@@ -17,16 +17,22 @@ env:
 matrix:
   include:
     - python: 3.6
-      env:
-        - PY=3.6
     - python: 3.7
       env:
         - COVERAGE=true
-        - PY=3.7
 
 install:
-  - pip install coveralls setuptools numpy nlopt scipy pandas pytest pytest-cov xlrd
-  - pip install -e .
+  - wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+  - chmod +x miniconda.sh
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - conda config --set always_yes true
+  - conda config --prepend channels conda-forge
+  - conda config --append channels bashtage
+  - conda config --set anaconda_upload yes
+  - conda update --all --quiet
+  - conda create -n build_env python=${TRAVIS_PYTHON_VERSION} copulae coveralls numpy pandas pytest pytest-cov scipy statsmodels xlrd
+  - source activate build_env
 
 script:
   - make test
@@ -41,17 +47,7 @@ after_success:
   - |
     if [[ ! -z "$TRAVIS_TAG" ]]; then
       echo "Building and uploading package to anaconda"
-      wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
-      chmod +x miniconda.sh
-      ./miniconda.sh -b
-      export PATH=/home/travis/miniconda3/bin:$PATH
-      conda config --set always_yes true
-      conda config --prepend channels conda-forge
-      conda config --append channels bashtage
-      conda config --set anaconda_upload yes
-      conda update --all --quiet
-      conda create -n build_env python=${PY} anaconda-client conda-build conda-verify
-      conda activate build_env
+      conda install anaconda-client conda-build conda-verify
       anaconda login --username $ANACONDA_USERNAME --password $ANACONDA_PASSWORD
       conda build --output-folder dists conda.recipe
     fi
