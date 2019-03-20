@@ -1,0 +1,71 @@
+os: linux
+dist: xenial  # ubuntu 16.04
+
+language: python
+
+branches:
+  only:
+    - master
+    - /\d*\.\d*\.\d*/
+
+env:
+  global:
+    - COVERAGE=false
+    - secure: "pThht+m/ilfV2bf3kBryORaN5uss1DrZ7hl9LWZDef+MJ6kFJ9aSpU/MRLabArTrqiT4UJyygEIWA0fAltkygJyWxmZTKjd75JnYjqSonHqL57QbAuD8zGjrInAR8OjhjEIjnufBne89HJiauDNkPR4yzrzNspac80+hkYTZq0hFUlVDQ3ry6FlS3tduDIc6j8pCKulpMo+yleGgPtIPNSh+RDLzPgYdwS8SNh6kCqRrnaS0l3u+WwFWTc4WY4gdDlKQJ/LFyrNt7ehf70qfQZc0hoeYyt9Cx6Z7j9252w39SVh850FZl0DdeRCi2z7q42EDzXWGZEfJEFiZugn+msL2UWZAB0ZMDyMnQqtSa2oB5D0RmglbilrVqAiNryDQFgy7DYWgtBRCLfv+++IfH1FeiJkC3SmTg0SyWday5IGm64JoVCjj2aewP4/eQiHBGM3s6o4uV9usxixbjmnz0ouZC6KUlne2c2y7eV4SDICMU2ZJcA/ym2ClXOxAgjxboFK+zcesumS+3Z8j6E+Ym0REwNWDnpWRLAGUdlhAOJmsU+LMdo02wZxO7/bhXpPQ0ktMfqtHqrHeeYUA1/9RXFqhxa4KmNQ3Gv+LaosTgnZn2gcjnMpA4M1euUFPJmaITZ6AnyH7o3J2PAYX/FPhP9X2ZfhYMfFvmpDus2n2Lb4="
+    - secure: "dwF7vyFTBatIEGrW786mk+l89g881w/2V/AqR/hKOCB0kgjkpztmpAHUEKVy0pUpAmcJifnzTOS0pEeOjBcj9PNKdQSQ+6U/YbAyS83uxL6PNh4qwQ5D0kVk7pQ9AO6jQudShaIlgDLR3cZcENGSpyFAcpXpZSzep5FgqgZsMHhJLE/Gkv/gBhRoi6aTKQv0Bg8EPGaSAb6cl02RK7Ik2IvLWtnOhpdmJyZZetk4tbxZfuNf0AynHHug/3BPdsdZLrs+tSKwLih5nYbAreuYkKIYZmrMPGIfunXooXEc2TF1ybrefGybD3kfzdtAlaoNKeHWOEwoiwLG96VXn0wMPAAi/+N58FUGtyFS/whsI/a5B8IzYt6/guX/r6A/JB9XGbDYCDquAKFgAH+z5ixW+hICpxLskHwqskUxsk2lqUiEsOxir3rnT45BH2wUQiwY0xFXw8oqewDbyNIiHr6xjdbSH40jAc2/ZwWx1Bv3ROpyjjGR7gxFv/MFbIUFIn+FocwLxRypA39Finnah9LqwyDvII6tFg45MrFLebJqlC04iQboxLXBoYUjXZWPpJ+8QnYnZiB9C/bN5r6tPC/std5kkY5U6J35LkQ2kiyUGaBfu9q2UnrQKC+HvvvbM/nG0s5JLObxSsgu+Br+Beuss0pz0RRDujmeYXospjRvkts="
+
+matrix:
+  include:
+    - python: 3.6
+      env:
+        - PY=3.6
+    - python: 3.7
+      env:
+        - COVERAGE=true
+        - PY=3.7
+
+install:
+  - pip install coveralls
+  - python install setuptools numpy nlopt scipy pandas
+  - python setup.py install
+
+script:
+  - make test
+
+after_success:
+  - echo "Test succeeded"
+  - |
+    if [[ "$COVERAGE" = true ]]; then
+      echo "Uploading coverage report"
+      coveralls;
+    fi
+  - |
+    if [[ ! -z "$TRAVIS_TAG" ]]; then
+      echo "Building and uploading package to anaconda"
+      wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+      chmod +x miniconda.sh
+      ./miniconda.sh -b
+      export PATH=/home/travis/miniconda3/bin:$PATH
+      conda config --set always_yes true
+      conda config --prepend channels conda-forge
+      conda config --append channels bashtage
+      conda config --set anaconda_upload yes
+      conda update --all --quiet
+      conda create -n build_env python=${PY} anaconda-client conda-build conda-verify
+      conda activate build_env
+      anaconda login --username $ANACONDA_USERNAME --password $ANACONDA_PASSWORD
+      conda build --output-folder dists conda.recipe
+    fi
+
+# Skip deployment to PyPI because PyPI only accepts manylinux wheels and
+# it is not trivial to build it.
+
+deploy:
+  - provider: pypi
+    user: DannieBee
+    password:
+      secure: dO67z40SvaE/Z0rss5ZS+il+u5hu8AUDMt6ej6bWbNQ4Dvtqn5vCCnC59rTY9zvYJ+xyLK/G7vtEgBzxCdkW0XZOKCK+OfogiUF2T3muslACFwIXefcK3IIskSrbYbx290uKOXkYExgtR5ySINkZBdYRO5totBeiOzuH6n/WtuyKdw79fQaAchPtj+16axjuyqZZZfiYIHyrpfCeTDNOm05yAeWFa5PAu81UcjlEFQKXVj2EyI0AkD3PKDoobhskUqSTtUYiCnVP4jtG7kV2ell1NXfJgUZ28f2RlPXAI3Im+xWpEE6cwVNIl83cQhHBIw4ximqt9yeNCTsb3lypcOKMeRILN6YO1l9wlNYngck8FoB9Y69wJEQQThMJoh/5hYBWTI5Jg5aV0VQsc0WwR8HkU2I/sMLrrlLbwaCbjVloy1K5uZuY9GSpMCJKSMjq7i6i8mOKq2nsRYP72zRdg0m1xcc+vXagXlkwiL5QWaW4d91805kHvKWT/K2fOZvXlE+duVCtdlQHueIiY9qRLpXDya/aH7ahIsxe8ZfZJCZA1FIRx4HholwTaN97MT1cd50WJ4ncwYJ+bJXL/mZGl4fSmcT9oMu6/2aNeLMJzYzDP8iDgx7Dx74+ikr6g+5WVLvUpwAKLd1odkT/Fy3TPL0VxXatKyPhgLjS4RP9sic=
+    distributions: "bdist_wheel"
+    skip_existing: true
+    on:
+      tags: true

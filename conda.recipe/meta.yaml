@@ -1,0 +1,29 @@
+{% set data = load_setup_py_data() %}
+
+package:
+  name: allopy
+  version: {{ data['version'] }}
+
+source:
+  path: ..
+
+build:
+  number: 1
+  string: py{{ CONDA_PY }}
+  script: python setup.py install --single-version-externally-managed --record=record.txt
+  noarch: python
+
+requirements:
+  host:
+    - python
+    - setuptools
+  run:
+    - python >=3.6
+    {% for dep in data['install_requires'] %}
+    - {{ dep.lower() }}
+    {% endfor %}
+
+about:
+  home: https://github.com/DanielBok/allopy
+  summary: Toolbox for portfolio construction and financial engineering in GIC
+  license: MIT
