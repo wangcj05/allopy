@@ -1,7 +1,14 @@
+include MANIFEST.in
+include LICENSE
+include README.md
+include setup.py
+include *.rst
+
 global-exclude *.py[co]
 global-exclude *.p
 
-exclude *scratch.py
-exclude docs/
+include versioneer.py
+include allopy/_version.py
 
 prune .pytest_cache
+prune docs

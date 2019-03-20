@@ -1,12 +1,13 @@
-import numpy as np
-import scipy.optimize as opt
 import warnings
-from copulae.core import is_psd, near_psd
-from copulae.types import Array
 from functools import wraps
 from typing import Iterable, Optional, Union
 
-from allopy.analytics import annualize_returns, coalesce_covariance_matrix
+import numpy as np
+import scipy.optimize as opt
+from copulae.core import is_psd, near_psd
+from copulae.types import Array
+
+from allopy.analytics.utils import annualize_returns, coalesce_covariance_matrix
 
 
 def __format_weights__(func):

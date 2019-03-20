@@ -25,8 +25,7 @@ matrix:
         - PY=3.7
 
 install:
-  - pip install coveralls
-  - python install setuptools numpy nlopt scipy pandas
+  - pip install coveralls setuptools numpy nlopt scipy pandas pytest pytest-cov xlrd
   - python setup.py install
 
 script:

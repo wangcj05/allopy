@@ -1,6 +1,7 @@
+from typing import Optional
+
 import numpy as np
 from copulae.types import Array
-from typing import Optional
 
 from .utils import returns_eot
 

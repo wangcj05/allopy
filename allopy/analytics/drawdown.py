@@ -1,7 +1,8 @@
+from typing import Iterable, Optional, Union
+
 import numpy as np
 import pandas as pd
 from copulae.types import Array
-from typing import Iterable, Optional, Union
 
 __all__ = ["drawdowns", "drawdown_stats"]
 

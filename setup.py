@@ -1,4 +1,5 @@
 import sys
+
 from setuptools import find_packages, setup
 
 import versioneer
@@ -15,6 +16,7 @@ def run_setup():
         raise RuntimeError('Please build on python 3!')
 
     install_requires = [
+        'copulae >=0.2',
         'numpy',
         'nlopt >=2.5',
         'scipy >=1.1',

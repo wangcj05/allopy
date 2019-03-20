@@ -1,5 +1,6 @@
-from nlopt import *
 from typing import Union
+
+from nlopt import *
 
 __all__ = [
     "GN_DIRECT",
@@ -51,14 +52,20 @@ __all__ = [
 ]
 
 
-def _map_algorithm(algorithm: str):
+def _map_algorithm(algorithm):
     """
     Maps the string name of an algorithm to it's nlopt equivalent
 
-    :param algorithm: name of algorithm
-    :return: nlopt name
-    """
+    Parameters
+    ----------
+    algorithm: str
+        name of algorithm
 
+    Returns
+    -------
+    str
+        nlopt name
+    """
     return {
         'GN_DIRECT': GN_DIRECT,
         'GN_DIRECT_L': GN_DIRECT_L,

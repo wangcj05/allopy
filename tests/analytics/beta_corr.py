@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 from numpy.testing import assert_array_almost_equal
 
-from allopy.analytics import beta_corr, coalesce_covariance_matrix
+from allopy.analytics import beta_corr
+from allopy.analytics.utils import coalesce_covariance_matrix
 
 
 @pytest.fixture()

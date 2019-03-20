@@ -4,5 +4,4 @@ from .drawdown import *
 from .metrics import *
 # from .funding_mix import *
 from .returns_path import *
-# from .sensitivity import *
-from .utils import *
+from .sensitivity import *

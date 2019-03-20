@@ -1,10 +1,11 @@
 import inspect
+from itertools import zip_longest
+from typing import Callable, Dict, Iterable, Optional, Tuple, Union
+
 import nlopt as nl
 import numpy as np
 import numpy.random as rng
 from copulae.types import Numeric
-from itertools import zip_longest
-from typing import Callable, Dict, Iterable, Optional, Tuple, Union
 
 from .algorithms import LD_SLSQP, _has_gradient, _map_algorithm
 

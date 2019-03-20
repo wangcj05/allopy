@@ -1,7 +1,8 @@
+from typing import Dict, Iterable, Optional
+
 import numpy as np
 from copulae.types import Array
 from scipy.stats import kurtosis, skew
-from typing import Dict, Iterable, Optional
 
 from allopy.utility import lru_cache_ext
 from .utils import calculate_cvar, returns_at, returns_eot, weighted_annualized_returns
