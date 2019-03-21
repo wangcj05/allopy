@@ -49,8 +49,8 @@ def cumulative_returns_path(data, w, rebalance: bool, quantile: Optional[Array] 
     else:
         # validating and prepping quantile
         quantile = np.asarray(quantile)
-        if not np.alltrue((quantile <= 1) & (quantile > 0)):
-            raise ValueError('quantile should be a vector which contains value within the range (0, 1]')
+        assert np.alltrue((quantile > 0) & (quantile <= 1)), "quantile should be a vector which contains value " \
+                                                             "within the range (0, 1]"
 
         quantile = np.asarray(quantile * n, int)
 

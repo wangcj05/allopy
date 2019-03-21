@@ -86,10 +86,8 @@ def coalesce_covariance_matrix(cov,
     cov = np.asarray(cov)
     n = len(w)
 
-    if cov.ndim != 2 or len(cov) != cov.shape[1]:
-        raise ValueError('cov must be a square matrix')
-    if n > len(cov):
-        raise ValueError('adjustment weights cannot be larger than the covariance matrix')
+    assert cov.ndim == 2 and cov.shape[0] == cov.shape[1], 'cov must be a square matrix'
+    assert n <= len(cov), 'adjustment weights cannot be larger than the covariance matrix'
 
     if indices is None:
         indices = np.arange(n)
@@ -218,16 +216,13 @@ def weighted_annualized_returns(data, rebalance, time_unit, *weight_info: Tuple[
     # weight returns where w1 contributes 40% and w2 contributes 60%
     >>> weighted_annualized_returns(data, False, 5, (0.4, w1), (0.6, w2))
     """
-    if len(weight_info) == 0:
-        raise ValueError('weight_info and their constant must be specified')
+    assert len(weight_info) != 0, 'weight_info and their constant must be specified'
 
     weight_info = list(weight_info)  # in case generator is passed in
     wc = np.asarray([w for w, _ in weight_info])  # used to check weight constants are valid
 
-    if np.any(wc < 0) or np.any(wc > 1):
-        raise ValueError("weight constant must be between [0, 1]")
-    elif not np.isclose(wc.sum(), 1):
-        raise ValueError("weight constant must sum to 1")
+    assert np.all(wc >= 0) and np.all(wc <= 1), "weight constant must be between [0, 1]"
+    assert np.isclose(wc.sum(), 1), "weight constant must sum to 1"
 
     ann_ret = 0
     years = len(data) / time_unit

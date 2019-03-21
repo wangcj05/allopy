@@ -22,8 +22,7 @@ def __format_weights__(func):
     def decorator(self: 'OptData', w: Array, *args, **kwargs):
         w = np.ravel(w)
 
-        if len(w) != self.n_assets:
-            raise ValueError(f'input weights should have {self.n_assets} elements')
+        assert len(w) == self.n_assets, f'input weights should have {self.n_assets} elements'
 
         return func(self, w, *args, **kwargs)
 
@@ -61,9 +60,8 @@ class OptData(np.ndarray):
             a month
         """
 
-        if data.ndim != 3:
-            raise ValueError("Data must be 3 dimensional with shape like (t, n, a) where <t> represents the time "
-                             "periods, <n> represents the trials and <a> represents the assets")
+        assert data.ndim == 3, "Data must be 3 dimensional with shape like (t, n, a) where `t` represents the time " \
+                               "periods, `n` represents the trials and `a` represents the assets"
 
         periods, trials, n_assets = data.shape
         if cov_mat is None:
@@ -71,8 +69,7 @@ class OptData(np.ndarray):
             cov_mat = np.mean([np.cov(data[:, i, :].T) for i in range(trials)], 0)
             cov_mat = near_psd(cov_mat)
 
-        if not is_psd(cov_mat):
-            raise ValueError("covariance matrix must be positive semi-definite")
+        assert is_psd(cov_mat), "covariance matrix must be positive semi-definite"
 
         if np.allclose(np.diag(cov_mat), 1) and np.alltrue(np.abs(cov_mat) <= 1):
             warnings.warn("The covariance matrix feels like a correlation matrix. Are you sure it's correct?")
@@ -136,15 +133,13 @@ class OptData(np.ndarray):
         >>> data.aggregate_assets([0.3, 0.4, 0.3], [4, 1, 6]).shape
         """
         w = np.asarray(w)
-        if w.ndim != 1:
-            raise ValueError("<w> must be a 1D float vector")
-        elif len(w) == 0:
-            raise ValueError("<w> must not be empty")
+
+        assert w.ndim == 1, "`w` must be a 1D float vector"
+        assert w.size != 0, "`w` must not be empty"
 
         if columns is not None:
             columns = np.asarray(columns)
-            if columns.ndim != 1 or len(columns) != len(w):
-                raise ValueError("columns must be a 1D integer vector with the same length as <w>")
+            assert columns.shape == w.shape, "columns must be a 1D integer vector with the same shape as `w`"
         else:
             columns = np.arange(len(w))
 
@@ -225,23 +220,20 @@ class OptData(np.ndarray):
         >>> new_data = data.coalesce_frequency(12, 4, copy=True)  # this is equivalent of month to year
         """
 
-        if type(from_) != type(to_):
-            raise ValueError
-
         # type check and convert strings to integers
         from_ = _freq_convert(from_, 'from_')
         to_ = _freq_convert(to_, 'to_')
 
         if from_ == to_:
             return self
-        elif from_ < to_:
-            raise ValueError("Cannot extend data from a shorter time period to a longer time period. For example, we "
-                             "cannot go from yearly data to monthly data. How to fill anything in between?")
+
+        assert from_ > to_, "Cannot extend data from a shorter time period to a longer time period. For example, we " \
+                            "cannot go from yearly data to monthly data. How to fill anything in between?"
 
         t, n, s = self.shape
         new_t = t / from_ * to_
-        if not new_t.is_integer():
-            raise ValueError(f"cannot convert {t} periods to {new_t} periods. Targeted periods must be an integer")
+
+        assert new_t.is_integer(), f"cannot convert {t} periods to {new_t} periods. Targeted periods must be an integer"
         new_t = int(new_t)
 
         data = (self.reshape((new_t, t // new_t, n, s)) + 1).prod(1) - 1  # reshape data
@@ -311,8 +303,7 @@ class OptData(np.ndarray):
         --------
         :py:meth:`.portfolio_returns` : Portfolio returns
         """
-        if percentile < 0 or percentile > 100:
-            raise ValueError("Percentile must be a number between [0, 100]")
+        assert 0 <= percentile <= 100, "Percentile must be a number between [0, 100]"
 
         returns = self.portfolio_returns(w, rebalance)
         cutoff = np.percentile(returns, percentile)
@@ -592,8 +583,7 @@ def _calibrate_sd(data: OptData, sd: Iterable[float]):
 
     """
     sd = np.asarray(sd)
-    if len(sd) != data.shape[2]:
-        raise ValueError(f'targeted standard deviation needs to have {data.shape[2]} elements')
+    assert len(sd) == data.shape[2], f'targeted standard deviation needs to have {data.shape[2]} elements'
 
     scale = sd / data.std(1).mean(0) / np.sqrt(data.time_unit)
     data *= scale
@@ -613,8 +603,7 @@ def _calibrate_mean(data: OptData, mean: Iterable[float]):
 
     """
     mean = np.asarray(mean)
-    if len(mean) != data.shape[2]:
-        raise ValueError(f'targeted mean needs to have {data.shape[2]} elements')
+    assert mean == data.shape[2], f'targeted mean needs to have {data.shape[2]} elements'
 
     sol = np.array([opt.newton(_geometric_returns,
                                np.random.uniform(-0.02, 0.02),
@@ -627,10 +616,9 @@ def _calibrate_mean(data: OptData, mean: Iterable[float]):
 def _freq_convert(freq: Union[str, int], freq_name: str) -> int:
     known_freq = ('m', 'month', 'q', 'quarter', 'y', 'year')
 
-    if type(freq) is str:
+    if isinstance(freq, str):
         freq = freq.lower()
-        if freq not in known_freq:
-            raise ValueError(f"{freq_name} must be in one of {known_freq} or be an integer")
+        assert freq in known_freq, f"{freq_name} must be in one of {known_freq} or be an integer"
 
         if freq in ('m', 'month'):
             return 12
@@ -639,12 +627,9 @@ def _freq_convert(freq: Union[str, int], freq_name: str) -> int:
         else:  # year
             return 1
 
-    if type(freq) is int:
-        if freq <= 0:
-            raise ValueError(f"{freq_name} must be an integer greater than 0")
-        return freq
-    else:
-        raise ValueError(f"{freq_name} must be in one of {known_freq} or be an integer")
+    assert isinstance(freq, int), f"{freq_name} must be in one of {known_freq} or be an integer"
+    assert freq <= 0, f"{freq_name} must be an integer greater than 0"
+    return freq
 
 
 def _geometric_returns(x: float, data: np.ndarray, mean: float, years: float):

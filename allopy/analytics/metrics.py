@@ -285,18 +285,15 @@ def _calculate_discounted_returns(data: np.ndarray, w: np.ndarray, rebalance: bo
     if ow is None:
         mean = weighted_annualized_returns(data, rebalance, time_unit, (1, w))
     else:
-        if weights is None:
-            raise ValueError("weights must be specified if <ow> (other weight) is specified")
+        assert weights is not None, "weights must be specified if <ow> (other weight) is specified"
         weights = tuple(weights)
 
         ow = np.asarray(ow)
         if ow.ndim == 1:
             ow = ow.reshape(1, -1)
 
-        if len(weights) != len(ow) + 1:
-            raise ValueError("weights for <w> (asset weight) and <ow> (other weight) must be specified if <cw> is "
-                             "specified.")
-
+        assert len(weights) == len(ow) + 1, "weights for <w> (asset weight) and <ow> (other weight) must be specified " \
+                                            "if <cw> is specified."
         weight_info = [(_c, _aw) for _c, _aw in zip(weights[1:], ow)]
         mean = weighted_annualized_returns(data, rebalance, time_unit, (weights[0], w), *weight_info)
     return mean

@@ -1,4 +1,5 @@
 import inspect
+from collections import abc
 from itertools import zip_longest
 from typing import Callable, Dict, Iterable, Optional, Tuple, Union
 
@@ -41,7 +42,7 @@ class BaseOptimizer:
         kwargs:
             other keyword arguments
         """
-        if type(algorithm) is str:
+        if isinstance(algorithm, str):
             algorithm = _map_algorithm(algorithm)
 
         self._n = n
@@ -161,11 +162,6 @@ class BaseOptimizer:
 
         args:
             Other arguments to pass to the objective function. This can be ignored in most cases
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
         self._max_or_min = 'minimize'
         self._model.set_stopval(-float('inf'))
@@ -187,11 +183,6 @@ class BaseOptimizer:
 
         args:
             Other arguments to pass to the constraint function. This can be ignored in most cases
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
         f = self._get_gradient_func(fn)
         self._hin[fn.__name__] = fn
@@ -211,18 +202,13 @@ class BaseOptimizer:
 
         args:
             Other arguments to pass to the constraint function. This can be ignored in most cases
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
         f = self._get_gradient_func(fn)
         self._heq[fn.__name__] = fn
         self._model.add_equality_constraint(f, *args)
         return self
 
-    def add_inequality_matrix_constraint(self, A: np.ndarray, b: np.ndarray):
+    def add_inequality_matrix_constraint(self, A, b):
         r"""
         Sets inequality constraints in standard matrix form.
 
@@ -230,17 +216,13 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        A: ndarray
-            Inequality matrix
+        A: {iterable float, ndarray}
+            Inequality matrix. Must be 2 dimensional.
 
-        b: ndarray
-            Inequality vector
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
+        b: {scalar, ndarray}
+            Inequality vector or scalar. If scalar, it will be propagated.
         """
+        A, b = _validate_matrix_constraints(A, b)
 
         for i, row, _b in zip(range(len(b)), A, b):
             fn = _create_matrix_constraint(row, _b)
@@ -250,7 +232,7 @@ class BaseOptimizer:
 
         return self
 
-    def add_equality_matrix_constraint(self, Aeq: np.ndarray, beq: np.ndarray):
+    def add_equality_matrix_constraint(self, Aeq, beq):
         r"""
         Sets equality constraints in standard matrix form.
 
@@ -258,17 +240,14 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        Aeq: ndarray
-            Equality matrix
+        Aeq: {iterable float, ndarray}
+            Equality matrix. Must be 2 dimensional.
 
-        beq: ndarray
-            Equality matrix
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
+        beq: {scalar, ndarray}
+            Equality vector or scalar. If scalar, it will be propagated.ndarray
         """
+        Aeq, beq = _validate_matrix_constraints(Aeq, beq)
+
         for i, row, _beq in zip(range(len(beq)), Aeq, beq):
             fn = _create_matrix_constraint(row, _beq)
             f = _create_gradient_func(fn, self._eps)
@@ -326,17 +305,11 @@ class BaseOptimizer:
         lb: {int, float, ndarray}
             Vector of lower bounds. If vector, must be same length as number of free variables. If :class:`float` or
             :class:`int`, value will be propagated to all variables.
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
-        if type(lb) in {int, float}:
+        if isinstance(lb, (int, float)):
             lb = np.repeat(float(lb), self._n)
 
-        if len(lb) != self._n:
-            raise ValueError(f"Input vector length must be {self._n}")
+        assert len(lb) == self._n, f"Input vector length must be {self._n}"
 
         self._model.set_lower_bounds(np.asarray(lb))
         return self
@@ -350,17 +323,11 @@ class BaseOptimizer:
         ub: {int, float, ndarray}
             Vector of lower bounds. If vector, must be same length as number of free variables. If :class:`float` or
             :class:`int`, value will be propagated to all variables.
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
-        if type(ub) in {int, float}:
+        if isinstance(ub, (int, float)):
             ub = np.repeat(float(ub), self._n)
 
-        if len(ub) != self._n:
-            raise ValueError(f"Input vector length must be {self._n}")
+        assert len(ub) == self._n, f"Input vector length must be {self._n}"
 
         self._model.set_upper_bounds(np.asarray(ub))
         return self
@@ -374,11 +341,6 @@ class BaseOptimizer:
         ----------
         epsilon: float
             the gradient step
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
         self._eps = epsilon
         return self
@@ -394,13 +356,8 @@ class BaseOptimizer:
         ----------
         tol: {float, ndarray}
             Absolute tolerance for each of the free variables
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
-        if type(tol) is not float:
+        if not isinstance(tol, float):
             tol = np.asarray(tol, dtype=float)
         self._model.set_xtol_abs(tol)
         return self
@@ -416,13 +373,8 @@ class BaseOptimizer:
         ----------
         tol: {float, ndarray}
             relative tolerance for each of the free variables
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
-        if type(tol) is not float:
+        if not isinstance(tol, float):
             tol = np.asarray(tol, dtype=float)
         self._model.set_xtol_rel(tol)
         return self
@@ -437,11 +389,6 @@ class BaseOptimizer:
         ----------
         n: int
             maximum number of evaluations
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
         self._model.set_maxeval(n)
         return self
@@ -454,11 +401,6 @@ class BaseOptimizer:
         ----------
         tol: float
             absolute tolerance of objective function value
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
         self._model.set_ftol_abs(tol)
         return self
@@ -471,11 +413,6 @@ class BaseOptimizer:
         ----------
         tol: float
             Absolute relative of objective function value
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
         self._model.set_ftol_rel(tol)
         return self
@@ -488,11 +425,6 @@ class BaseOptimizer:
         ----------
         stopval: float
             Stopping value
-
-        Returns
-        -------
-        BaseOptimizer
-            Own instance
         """
         self._model.set_stopval(stopval)
         return self
@@ -525,13 +457,15 @@ class BaseOptimizer:
         if r is not None:
             smry.tight_hin = r.tight_hin
             smry.violations = r.violations
-        print(smry)
+            smry.solution = r.x
+        return smry
 
 
 class Result:
     def __init__(self, hin: ConstraintMap, heq: ConstraintMap, sol: np.ndarray, eps: float):
         self.tight_hin = []
         self.violations = []
+
         for name, f in hin.items():
             value = f(sol)
             if -eps <= value <= eps:
@@ -558,6 +492,7 @@ class Summary:
         self.opt_setup = opt_setup
         self.violations = []
         self.tight_hin = []
+        self.solution = []
         self.lb, self.ub = bounds
 
     def _repr_html_(self):
@@ -573,9 +508,11 @@ class Summary:
 
             setup += wrap('tr', ''.join(wrap('td', i) for i in (x1, x2, y1, y2)))
 
-        bounds = ""
-        for l, u in zip(self.lb, self.ub):
-            bounds += wrap('tr', f"{l:15.6f}{u:15.6f}")
+        bounds = " ".join(
+            wrap(
+                'tr',
+                ''.join([wrap('td', round(l, 6)), wrap('td', round(6))]))
+            for l, u in zip(self.lb, self.ub))
 
         if len(self.violations) > 0:
             violations = ''.join(wrap('li', f"{i + 1:3d}: {n}") for i, n in enumerate(self.violations))
@@ -584,7 +521,7 @@ class Summary:
     <b>No solution found</b>. List of constraints violated below:
     <ul>
     {violations}
-    </ul> 
+    </ul>
 </div>
             """
         else:
@@ -594,10 +531,14 @@ class Summary:
                 tight = ''.join(wrap("li", f'{i + 1:3d}: {n}') for i, n in enumerate(self.tight_hin))
                 tight = f'The following inequality constraints were tight: <br/><ul>{tight}</ul>'
 
+            sol = self.solution
             results = f"""
 <div>
-    <b>Program found a solution</b><br/>
-    {tight}    
+    <b>Program found a solution</b>
+    <p>
+        Solution: [{', '.join(str(round(x, 6)) for x in sol) if isinstance(sol, abc.Iterable) else sol}]
+    </p>
+    {tight}
 </div> 
 """
 
@@ -657,7 +598,7 @@ class Summary:
             divider(),
             f'{"Lower Bounds":15s}{"Upper Bounds":15s}',
             *[f"{l:15.6f}{u:15.6f}" for l, u in zip(self.lb, self.ub)],
-            new_lines(3)
+            new_lines(2)
         ])
 
         # results
@@ -669,7 +610,13 @@ class Summary:
                 *[f"{i + 1:3d}: {n}" for i, n in enumerate(self.violations)]
             ])
         else:
-            rows.append('Program found a solution')
+            sln = ''.join(x for x in self.solution) if isinstance(self.solution, abc.Iterable) else self.solution
+            rows.extend([
+                'Program found a solution',
+                f"Solution: [{sln}]",
+                new_lines()
+            ])
+
             if (len(self.tight_hin)) == 0:
                 rows.append('None of the constraints were tight')
             else:
@@ -700,3 +647,16 @@ def _create_gradient_func(fn, eps):
         return fn(w)
 
     return f
+
+
+def _validate_matrix_constraints(A, b):
+    A = np.asarray(A)
+    b = np.asarray(b)
+
+    assert A.ndim == 2, '(In)-Equality matrix `A` must be 2 dimensional!'
+
+    if b.size == 1:
+        b = np.repeat(float(b), len(A))
+    assert b.ndim == 1, '`b` vector must be 1 dimensional or a scalar'
+
+    return A, b

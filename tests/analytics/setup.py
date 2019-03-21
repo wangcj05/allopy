@@ -1,5 +1,6 @@
-import pandas as pd
 from os import path
+
+import pandas as pd
 
 __data_dir = path.join(path.dirname(__file__), '..', 'data')
 
@@ -21,14 +22,12 @@ def read_analytics():
 def read_historical(typ='total', sheet=None) -> pd.DataFrame:
     typ = typ.lower()
     valid_types = 'total', 'passive', 'active', 'expected'
-    if typ not in valid_types:
-        raise ValueError(f"Unrecognized type: {typ}. It must be one of {valid_types}")
+    assert typ in valid_types, f"Unrecognized type: {typ}. It must be one of {valid_types}"
 
     fp = path.join(__data_dir, 'historical.xlsx')
 
     if typ == 'expected':
-        if sheet is None:
-            raise ValueError("<sheet> must be defined if <typ> is 'expected'")
+        assert sheet is not None, "`sheet` must be defined if `typ` is 'expected'"
         return pd.read_excel(fp, sheet)
 
     hist = pd.read_excel(fp, 'data', parse_dates=['DATE'])

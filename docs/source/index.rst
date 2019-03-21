@@ -11,11 +11,14 @@ Currently, it contains routines for:
 
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: Contents:
 
+    Getting Start <getting-started>
+    Examples <examples/index>
     Optimizers <optimizers/index>
     Analytics <analytics/index>
+
 
 Indices and tables
 ==================

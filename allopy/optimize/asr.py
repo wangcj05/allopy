@@ -1,6 +1,7 @@
+from typing import Iterable, Optional, Union
+
 import numpy as np
 from copulae.types import Array
-from typing import Iterable, Optional, Union
 
 from .algorithms import LD_SLSQP
 from .base import BaseOptimizer
@@ -52,12 +53,12 @@ class ASROptimizer(BaseOptimizer):
 
         cov_mat = kwargs.get('cov_mat', None)
         time_unit = kwargs.get('period_year_length', 4)
-        if type(data) is not OptData:
+        if isinstance(data, OptData):
             data = OptData(data, cov_mat, time_unit)
 
         if cvar_data is None:
             cvar_data = data.copy()
-        elif type(cvar_data) is not OptData:
+        elif isinstance(cvar_data, OptData):
             cvar_data = OptData(cvar_data, cov_mat, time_unit)
 
         super().__init__(data.n_assets, algorithm, eps, *args, **kwargs)
@@ -81,8 +82,7 @@ class ASROptimizer(BaseOptimizer):
 
     @rebalance.setter
     def rebalance(self, rebal: bool):
-        if type(rebal) is not bool:
-            raise ValueError('rebalance parameter must be boolean')
+        assert isinstance(rebal, bool), 'rebalance parameter must be boolean'
 
         self._funcs.rebalance = rebal
 
@@ -128,9 +128,8 @@ class _APObjectives:
         """
         opt, f = self.asr, self.funcs
 
-        if max_te is None and max_cvar is None:
-            raise ValueError("EE: If maximizing EVA subject to some sort of TE/CVaR constraint, we must at least "
-                             "specify max CVaR or max TE")
+        assert not (max_te is None and max_cvar is None), "If maximizing EVA subject to some sort of TE/CVaR " \
+                                                          "constraint, we must at least specify max CVaR or max TE"
 
         if max_te is not None:
             opt.add_inequality_constraint(f.tracking_error_cons(max_te))
@@ -227,8 +226,7 @@ def _to_scalar_(name: str):
 
     def wrapper(func):
         def decorator(cls, value, *args, **kwargs):
-            if type(value) not in {int, float}:
-                raise ValueError(f'{name} must be a numeric scalar')
+            assert np.isscalar(value), f'{name} must be a numeric scalar'
 
             value = float(value)
             return func(cls, value, *args, **kwargs)

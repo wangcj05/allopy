@@ -29,7 +29,7 @@ def test_coalesce_covariance_matrix(cov):
     assert new_cov.shape == (4, 4)
 
     new_cov = coalesce_covariance_matrix(cov, (0.3, 0.7, 0.4, 0.5, 0.1))
-    assert type(new_cov) is float
+    assert isinstance(new_cov, float)
 
 
 def test_coalesce_covariance_matrix_errors():

@@ -81,7 +81,7 @@ def drawdown_stats(x: Union[pd.Series, Array], dates: DateEquivalent = None) -> 
         A data frame containing drawdown statistics
     """
     if dates is None:
-        if type(x) in (pd.DataFrame, pd.Series):
+        if isinstance(x, (pd.DataFrame, pd.Series)):
             dates = x.index
         else:
             dates = np.arange(len(x))
@@ -91,8 +91,7 @@ def drawdown_stats(x: Union[pd.Series, Array], dates: DateEquivalent = None) -> 
     if not hasattr(x, 'is_drawdown'):
         x = drawdowns(x, dates)
 
-    if x.ndim != 1:
-        raise ValueError('drawdown data <x> can only be 1 dimensional')
+    assert x.ndim == 1, 'drawdown data <x> can only be 1 dimensional'
 
     from_, trough_, to_, drawdown_ = [], [], [], []
 

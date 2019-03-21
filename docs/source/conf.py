@@ -12,10 +12,19 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
+import glob
 import os
+import shutil
 import sys
 
-sys.path.insert(0, os.path.abspath('../..'))
+root = os.path.abspath('../..')
+sys.path.insert(0, root)
+
+# copy over examples
+examples = os.path.join(os.path.dirname(__file__), 'examples')
+for file in glob.glob(os.path.join(root, 'examples', '*.ipynb')):
+    _, fn = os.path.split(file)
+    shutil.copy(file, os.path.join(examples, fn))
 
 # -- Project information -----------------------------------------------------
 

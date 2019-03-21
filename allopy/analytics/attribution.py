@@ -29,8 +29,7 @@ def cvar_attr(data, w, rebalance, percentile=5.0) -> np.ndarray:
     ndarray
         CVaR attribution for each asset class
     """
-    if percentile < 0 or percentile > 100:
-        raise ValueError("Percentile must be a number between [0, 100]")
+    assert 0 <= percentile <= 100, "Percentile must be a number between [0, 100]"
 
     k = int(percentile / 100 * data.shape[1])
 
