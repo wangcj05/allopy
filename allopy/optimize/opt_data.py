@@ -134,8 +134,7 @@ class OptData(np.ndarray):
         """
         w = np.asarray(w)
 
-        assert w.ndim == 1, "`w` must be a 1D float vector"
-        assert w.size != 0, "`w` must not be empty"
+        assert w.ndim == 1 and w.size != 0, "`w` must be a non-empty 1D vector"
 
         if columns is not None:
             columns = np.asarray(columns)
@@ -603,7 +602,7 @@ def _calibrate_mean(data: OptData, mean: Iterable[float]):
 
     """
     mean = np.asarray(mean)
-    assert mean == data.shape[2], f'targeted mean needs to have {data.shape[2]} elements'
+    assert len(mean) == data.shape[2], f'targeted mean needs to have {data.shape[2]} elements'
 
     sol = np.array([opt.newton(_geometric_returns,
                                np.random.uniform(-0.02, 0.02),
@@ -629,6 +628,7 @@ def _freq_convert(freq: Union[str, int], freq_name: str) -> int:
 
     assert isinstance(freq, int), f"{freq_name} must be in one of {known_freq} or be an integer"
     assert freq <= 0, f"{freq_name} must be an integer greater than 0"
+
     return freq
 
 

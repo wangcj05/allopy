@@ -53,12 +53,12 @@ class ASROptimizer(BaseOptimizer):
 
         cov_mat = kwargs.get('cov_mat', None)
         time_unit = kwargs.get('period_year_length', 4)
-        if isinstance(data, OptData):
+        if not isinstance(data, OptData):
             data = OptData(data, cov_mat, time_unit)
 
         if cvar_data is None:
             cvar_data = data.copy()
-        elif isinstance(cvar_data, OptData):
+        elif not isinstance(cvar_data, OptData):
             cvar_data = OptData(cvar_data, cov_mat, time_unit)
 
         super().__init__(data.n_assets, algorithm, eps, *args, **kwargs)
@@ -154,7 +154,7 @@ class _APObjectives:
 
         use_active_return: boolean, optional
             If True, return is calculated as active return, that is the first (passive) weight will be set to 0.
-            Otherwise, use the total return. Defaults to True
+            Otherwise, use the total return. Defaults to False
 
         x0: ndarray
             Initial vector. Starting position for free variables

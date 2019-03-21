@@ -34,9 +34,9 @@ def test_coalesce_covariance_matrix(cov):
 
 def test_coalesce_covariance_matrix_errors():
     """Tests that coalesce_covariance_matrix raises error when arguments are wrong"""
-    with pytest.raises(ValueError, match='cov must be a square matrix'):
+    with pytest.raises(AssertionError, match='cov must be a square matrix'):
         coalesce_covariance_matrix(np.random.standard_normal((5, 4)), (0.3, 0.7))
 
-    with pytest.raises(ValueError, match='adjustment weights cannot be larger than the covariance matrix'):
+    with pytest.raises(AssertionError, match='adjustment weights cannot be larger than the covariance matrix'):
         cov = np.random.standard_normal((5, 5))
         coalesce_covariance_matrix(cov, np.random.uniform(size=6))

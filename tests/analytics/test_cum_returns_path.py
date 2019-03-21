@@ -21,8 +21,8 @@ def test_cum_returns_path(data, w, expected):
     assert_array_almost_equal(res, exp, 4, f"Rebalance {msg}")
 
     # invalid quantile
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         cumulative_returns_path(data, w, False, [0, 0.25, 1])
 
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         cumulative_returns_path(data, w, False, [1.1, 0.25])
