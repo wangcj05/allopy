@@ -31,7 +31,7 @@ install:
   - conda config --append channels bashtage
   - conda config --set anaconda_upload yes
   - conda update --all --quiet
-  - conda create -n build_env python=${TRAVIS_PYTHON_VERSION} copulae coveralls numpy pandas pytest pytest-cov scipy statsmodels xlrd
+  - conda create -n build_env python=${TRAVIS_PYTHON_VERSION} copulae coveralls nlopt numpy pandas pytest pytest-cov scipy statsmodels xlrd
   - source activate build_env
 
 script:
