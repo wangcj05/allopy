@@ -16,9 +16,9 @@ def run_setup():
         raise RuntimeError('Please build on python 3!')
 
     install_requires = [
-        'copulae >=0.2',
+        'copulae >=0.3',
         'numpy',
-        'nlopt >=2.4',
+        'nlopt >=2.6',
         'scipy >=1.1',
         'pandas >=0.23'
     ]
