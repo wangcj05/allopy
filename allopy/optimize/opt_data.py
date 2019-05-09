@@ -1,6 +1,6 @@
 import warnings
 from functools import wraps
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional
 
 import numpy as np
 import scipy.optimize as opt
@@ -173,29 +173,47 @@ class OptData(np.ndarray):
             an instance of :class:`OptData`
         """
         data = self if inplace else self.copy()
-        if sd is not None:
-            _calibrate_sd(data, sd)
+        s = data.shape
 
-        if mean is not None:
-            _calibrate_mean(data, mean)
+        if sd is None:
+            y = s[0] // self.time_unit
+            target_vols = ((data.reshape((self.time_unit, y, *s[1:])) + 1).prod(0) - 1).std(1).mean(0)
+        else:
+            target_vols = np.asarray(sd)
+
+        if mean is None:
+            target_means = ((data + 1).prod(0) ** (self.time_unit / s[0])).mean(0) - 1
+        else:
+            target_means = np.asarray(mean)
+
+        assert len(target_vols) == len(target_means)
+        num_assets = len(target_means)
+
+        sol = np.asarray([opt.root(
+            fun=_asset_moments,
+            x0=np.random.uniform(0, 0.02, 2),
+            args=(data[..., i], tv, tm, self.time_unit)
+        ).x for i, tv, tm in zip(range(num_assets), target_vols, target_means)])
+
+        for i in range(num_assets):
+            # modify in place
+            data[..., i] = data[..., i] * sol[i, 0] + sol[i, 1]
 
         return data
 
-    def coalesce_frequency(self, from_='month', to_='quarter'):
+    def coalesce_frequency(self, to='quarter'):
         """
         Coalesces a the 3D tensor to a lower frequency.
 
-        For example, if we had a 10000 simulations of 10 year, monthly
-        returns for 30 asset classes, we would originally have a 120 x 10000 x 30 tensor. If we want to collapse this
+        For example, if we had a 10000 simulations of 10 year, monthly returns for 30 asset classes,
+        we would originally have a 120 x 10000 x 30 tensor. If we want to collapse this
         to a quarterly returns tensor, the resulting tensor's shape would be 40 x 10000 x 30
+
+        Note that we can only coalesce data from a higher frequency to lower frequency.
 
         Parameters
         ----------
-        from_: {int, 'month', 'quarter', 'year'}, optional
-            The frequency of the underlying. If a string is passed in, it must be one of ('month', 'quarter', 'year').
-            If an integer is passed in, this value should be the number of units in a year
-
-        to_: {int, 'month', 'quarter', 'year'}, optional
+        to: {int, 'month', 'quarter', 'year'}, optional
             The targeted frequency. If a string is passed in, it must be one of ('month', 'quarter', 'year').
             If an integer is passed in, this value should be the number of units in a year
 
@@ -212,31 +230,44 @@ class OptData(np.ndarray):
         >>> np.random.seed(8888)
         >>> data = np.random.standard_normal((120, 10000, 7))
         >>> data = OptData(data)
-        >>> new_data = data.coalesce_frequency('month', 'quarter')  # changes to new_data will affect data
+        >>> new_data = data.coalesce_frequency('quarter')  # changes to new_data will affect data
         >>> print(new_data.shape)
 
         # making copies, changes to new_data will not affect data
-        >>> new_data = data.coalesce_frequency(12, 4, copy=True)  # this is equivalent of month to year
+        >>> new_data = data.coalesce_frequency(4, copy=True)  # this is equivalent of month to year
         """
 
-        # type check and convert strings to integers
-        from_ = _freq_convert(from_, 'from_')
-        to_ = _freq_convert(to_, 'to_')
+        known_freq = ('m', 'month', 'q', 'quarter', 'y', 'year')
 
-        if from_ == to_:
+        if isinstance(to, str):
+            assert to.lower() in known_freq, f"target data frequency must be in one of {known_freq} or be an integer"
+
+            to.lower()
+            if to in ('m', 'month'):
+                to = 12
+            elif to in ('q', 'quarter'):
+                to = 4
+            else:  # year
+                to = 1
+        else:
+            assert isinstance(to, int), f"target data frequency must be in one of {known_freq} or be an integer"
+            assert to > 0, f"target data frequency must be an integer greater than 0"
+
+        # type check and convert strings to integers
+        if to == self.time_unit:
             return self
 
-        assert from_ > to_, "Cannot extend data from a shorter time period to a longer time period. For example, we " \
-                            "cannot go from yearly data to monthly data. How to fill anything in between?"
+        assert to > self.time_unit, "Cannot extend data from lower to higher frequency. For example, we " \
+                                    "cannot go from yearly data to monthly data. How to fill anything in between?"
 
         t, n, s = self.shape
-        new_t = t / from_ * to_
+        new_t = t / self.time_unit * to
 
         assert new_t.is_integer(), f"cannot convert {t} periods to {new_t} periods. Targeted periods must be an integer"
         new_t = int(new_t)
 
         data = (self.reshape((new_t, t // new_t, n, s)) + 1).prod(1) - 1  # reshape data
-        return OptData(data, self.cov_mat, self.time_unit * to_ // from_)  # Cast as OptData
+        return OptData(data, self.cov_mat, to)  # Cast as OptData
 
     def cut_by_horizon(self, years: float, copy=True):
         """
@@ -340,7 +371,7 @@ class OptData(np.ndarray):
 
         """
         returns = self.portfolio_returns(w, rebalance) + 1
-        return annualize_returns(returns, self.n_years).mean()
+        return np.mean(annualize_returns(returns, self.n_years))
 
     @__format_weights__
     def sharpe_ratio(self, w: Array, rebalance: bool) -> float:
@@ -568,95 +599,39 @@ class OptData(np.ndarray):
         super(OptData, self).__setstate__(state[:-1], *args, **kwargs)
 
 
-def _calibrate_sd(data: OptData, sd: Iterable[float]):
+def _asset_moments(x: np.ndarray, asset: np.ndarray, t_vol: float, t_mean: float, time_unit: int):
     """
-    Adjusts the standard deviation of the data in place
+    Calculates the first 2 asset moments after an adjustment
 
     Parameters
     ----------
-    data: OptData
-        Data to be adjusted
+    x: ndarray
+        Adjustment quantity
 
-    sd: iterable float
-        Target standard deviation
+    asset: ndarray
+        Initial asset tensor
 
-    """
-    sd = np.asarray(sd)
-    assert len(sd) == data.shape[2], f'targeted standard deviation needs to have {data.shape[2]} elements'
+    t_vol: float
+        Target volatility
 
-    scale = sd / data.std(1).mean(0) / np.sqrt(data.time_unit)
-    data *= scale
+    t_mean: float
+        Target returns
 
-
-def _calibrate_mean(data: OptData, mean: Iterable[float]):
-    """
-    Adjusts the mean of the data in place
-
-    Parameters
-    ----------
-    data: OptData
-        Data to be adjusted
-
-    mean: iterable float
-        Target mean
-
-    """
-    mean = np.asarray(mean)
-    assert len(mean) == data.shape[2], f'targeted mean needs to have {data.shape[2]} elements'
-
-    sol = np.array([opt.newton(_geometric_returns,
-                               np.random.uniform(-0.02, 0.02),
-                               args=(data[..., i], m, data.n_years))
-                    for i, m in enumerate(mean)])
-
-    data -= sol[None, None, :]
-
-
-def _freq_convert(freq: Union[str, int], freq_name: str) -> int:
-    known_freq = ('m', 'month', 'q', 'quarter', 'y', 'year')
-
-    if isinstance(freq, str):
-        freq = freq.lower()
-        assert freq in known_freq, f"{freq_name} must be in one of {known_freq} or be an integer"
-
-        if freq in ('m', 'month'):
-            return 12
-        elif freq in ('q', 'quarter'):
-            return 4
-        else:  # year
-            return 1
-
-    assert isinstance(freq, int), f"{freq_name} must be in one of {known_freq} or be an integer"
-    assert freq <= 0, f"{freq_name} must be an integer greater than 0"
-
-    return freq
-
-
-def _geometric_returns(x: float, data: np.ndarray, mean: float, years: float):
-    """
-    Internal function to adjust the returns matrix. Note that because scipy optimize works on scalar (x), the data
-    we pass in has to be a matrix where each matrix represents the time * trials of an asset.
-
-    Parameters
-    ----------
-    x: float
-        The adjustment factor. Put in by :py:func:`scipy.optimize` to determine how much to shift the mean by so
-        that we get to 0 for the root finding process
-
-    data: ndarray
-        The matrix containing the time and trials
-
-    mean: float
-        The target mean value
-
-    years: float
-        Number of years. Used for annualizing returns
+    time_unit: int
+        Specifies how many units (first axis) is required to represent a year. For example, if each time period
+        represents a month, set this to 12. If quarterly, set to 4. Defaults to 12 which means 1 period represents
+        a month
 
     Returns
     -------
-    float
-        The amount to shift the mean by
+    (float, float)
+        Volatility and mean
     """
-    cum_returns = (data - x + 1).prod(0)  # shift each asset class by 'x' and take product down time axis
-    annualized_mean = np.power(cum_returns, 1 / years).mean()  # annualize the matrix then take mean
-    return annualized_mean - mean - 1  # take the annualized minus the targeted 'mean'
+
+    t, n = asset.shape  # time step (month), trials
+    y = t // time_unit
+
+    calibrated = asset * x[0] + x[1]
+    vol = ((calibrated.reshape((time_unit, y, n)) + 1).prod(0) - 1).std(1).mean(0) - t_vol
+    mean = ((calibrated + 1).prod(0) ** (1 / y)).mean() - t_mean - 1
+    return vol, mean
