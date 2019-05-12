@@ -172,34 +172,11 @@ class OptData(np.ndarray):
         OptData
             an instance of :class:`OptData`
         """
-        data = self if inplace else self.copy()
-        s = data.shape
-
-        if sd is None:
-            y = s[0] // self.time_unit
-            target_vols = ((data.reshape((self.time_unit, y, *s[1:])) + 1).prod(0) - 1).std(1).mean(0)
-        else:
-            target_vols = np.asarray(sd)
-
-        if mean is None:
-            target_means = ((data + 1).prod(0) ** (self.time_unit / s[0])).mean(0) - 1
-        else:
-            target_means = np.asarray(mean)
-
-        assert len(target_vols) == len(target_means)
-        num_assets = len(target_means)
-
-        sol = np.asarray([opt.root(
-            fun=_asset_moments,
-            x0=np.random.uniform(0, 0.02, 2),
-            args=(data[..., i], tv, tm, self.time_unit)
-        ).x for i, tv, tm in zip(range(num_assets), target_vols, target_means)])
-
-        for i in range(num_assets):
-            # modify in place
-            data[..., i] = data[..., i] * sol[i, 0] + sol[i, 1]
-
-        return data
+        data = calibrate_data(self, mean, sd, self.time_unit)
+        if inplace:
+            self[:] = OptData(data[:], self.cov_mat, self.time_unit)
+            return self
+        return OptData(data, self.cov_mat, self.time_unit)
 
     def coalesce_frequency(self, to='quarter'):
         """
@@ -597,6 +574,65 @@ class OptData(np.ndarray):
         self._unrebalanced_returns_data = meta['_unrebalanced_returns_data']
 
         super(OptData, self).__setstate__(state[:-1], *args, **kwargs)
+
+
+def calibrate_data(data: np.ndarray, mean: Optional[Iterable[float]] = None, sd: Optional[Iterable[float]] = None,
+                   time_unit=12):
+    """
+    Calibrates the data given the target mean and standard deviation.
+
+    Parameters
+    ----------
+    data: ndarray
+        Data tensor to calibrate
+
+    mean: iterable float, optional
+        The targeted mean vector
+
+    sd: iterable float, optional
+        The targeted float vector
+
+    time_unit: int, optional
+        Specifies how many units (first axis) is required to represent a year. For example, if each time period
+        represents a month, set this to 12. If quarterly, set to 4. Defaults to 12 which means 1 period represents
+        a month
+
+    Returns
+    -------
+    ndarray
+        An instance of the adjusted numpy tensor
+    """
+    data = data.copy()
+    s = data.shape
+
+    if sd is None:
+        y = s[0] // time_unit
+        target_vols = ((data.reshape((time_unit, y, *s[1:])) + 1).prod(0) - 1).std(1).mean(0)
+    else:
+        target_vols = np.asarray(sd)
+
+    if mean is None:
+        target_means = ((data + 1).prod(0) ** (time_unit / s[0])).mean(0) - 1
+    else:
+        target_means = np.asarray(mean)
+
+    assert len(target_vols) == len(target_means)
+    num_assets = len(target_means)
+
+    sol = np.asarray([opt.root(
+        fun=_asset_moments,
+        x0=np.random.uniform(0, 0.02, 2),
+        args=(data[..., i], tv, tm, time_unit)
+    ).x for i, tv, tm in zip(range(num_assets), target_vols, target_means)])
+
+    for i in range(num_assets):
+        if sol[i, 0] < 0:
+            warnings.warn(f'negative vol adjustment at index {i}. This is a cause of concern as a negative vol '
+                          f'multiplier will alter the correlation structure')
+
+        data[..., i] = data[..., i] * sol[i, 0] + sol[i, 1]
+
+    return data
 
 
 def _asset_moments(x: np.ndarray, asset: np.ndarray, t_vol: float, t_mean: float, time_unit: int):
