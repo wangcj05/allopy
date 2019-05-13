@@ -9,6 +9,8 @@ from copulae.types import Array
 
 from allopy.analytics.utils import annualize_returns, coalesce_covariance_matrix
 
+__all__ = ['OptData', 'calibrate_data', 'coalesce_frequency']
+
 
 def __format_weights__(func):
     """
@@ -211,39 +213,10 @@ class OptData(np.ndarray):
         >>> print(new_data.shape)
 
         # making copies, changes to new_data will not affect data
-        >>> new_data = data.coalesce_frequency(4, copy=True)  # this is equivalent of month to year
+        >>> new_data = data.coalesce_frequency(4)  # this is equivalent of month to year
         """
 
-        known_freq = ('m', 'month', 'q', 'quarter', 'y', 'year')
-
-        if isinstance(to, str):
-            assert to.lower() in known_freq, f"target data frequency must be in one of {known_freq} or be an integer"
-
-            to.lower()
-            if to in ('m', 'month'):
-                to = 12
-            elif to in ('q', 'quarter'):
-                to = 4
-            else:  # year
-                to = 1
-        else:
-            assert isinstance(to, int), f"target data frequency must be in one of {known_freq} or be an integer"
-            assert to > 0, f"target data frequency must be an integer greater than 0"
-
-        # type check and convert strings to integers
-        if to == self.time_unit:
-            return self
-
-        assert to > self.time_unit, "Cannot extend data from lower to higher frequency. For example, we " \
-                                    "cannot go from yearly data to monthly data. How to fill anything in between?"
-
-        t, n, s = self.shape
-        new_t = t / self.time_unit * to
-
-        assert new_t.is_integer(), f"cannot convert {t} periods to {new_t} periods. Targeted periods must be an integer"
-        new_t = int(new_t)
-
-        data = (self.reshape((new_t, t // new_t, n, s)) + 1).prod(1) - 1  # reshape data
+        data = coalesce_frequency(np.asarray(self), self.time_unit, to)
         return OptData(data, self.cov_mat, to)  # Cast as OptData
 
     def cut_by_horizon(self, years: float, copy=True):
@@ -633,6 +606,96 @@ def calibrate_data(data: np.ndarray, mean: Optional[Iterable[float]] = None, sd:
         data[..., i] = data[..., i] * sol[i, 0] + sol[i, 1]
 
     return data
+
+
+def coalesce_frequency(data, from_='month', to_='quarter'):
+    """
+    Coalesces a the 3D tensor to a lower frequency.
+
+    For example, if we had a 10000 simulations of 10 year, monthly returns for 30 asset classes,
+    we would originally have a 120 x 10000 x 30 tensor. If we want to collapse this
+    to a quarterly returns tensor, the resulting tensor's shape would be 40 x 10000 x 30
+
+    Note that we can only coalesce data from a higher frequency to lower frequency.
+
+    Parameters
+    ----------
+    data: ndarray
+        The 3-dimension simulation tensor. The data's dimensions must be in time, trials, asset.
+
+    from_: {int, 'month', 'quarter', 'year'}, optional
+        The starting frequency. If a string is passed in, it must be one of ('month', 'quarter', 'year').
+        If an integer is passed in, this value should be the number of units in a year. Thus, if moving
+        from monthly data to quarterly data, this argument should be 12
+
+    to_: {int, 'month', 'quarter', 'year'}, optional
+        The targeted frequency. If a string is passed in, it must be one of ('month', 'quarter', 'year').
+        If an integer is passed in, this value should be the number of units in a year. Thus, if moving
+        from monthly data to quarterly data, this argument should be 4
+
+    Returns
+    -------
+    OptData
+        A :class:`OptData` with lower frequency
+
+    Example
+    -------
+    >>> import numpy as np
+    >>> from allopy.optimize import coalesce_frequency
+
+    >>> np.random.seed(8888)
+    >>> data = np.random.standard_normal((120, 10000, 7))
+    >>> new_data = coalesce_frequency(data, 'month', 'quarter')
+    >>> print(new_data.shape)
+
+    # making copies, changes to new_data will not affect data
+    >>> new_data = coalesce_frequency(data, 12, 4)  # this is equivalent of month to quarter
+    """
+
+    known_freq = ('m', 'month', 'q', 'quarter', 'y', 'year')
+
+    if isinstance(from_, str):
+        assert from_.lower() in known_freq, f"initial data frequency must be in one of {known_freq} or be an integer"
+
+        from_.lower()
+        if from_ in ('m', 'month'):
+            from_ = 12
+        elif from_ in ('q', 'quarter'):
+            from_ = 4
+        else:  # year
+            from_ = 1
+    else:
+        assert isinstance(from_, int), f"initial data frequency must be in one of {known_freq} or be an integer"
+        assert from_ > 0, f"initial data frequency must be an integer greater than 0"
+
+    if isinstance(to_, str):
+        assert to_.lower() in known_freq, f"target data frequency must be in one of {known_freq} or be an integer"
+
+        to_.lower()
+        if to_ in ('m', 'month'):
+            to_ = 12
+        elif to_ in ('q', 'quarter'):
+            to_ = 4
+        else:  # year
+            to_ = 1
+    else:
+        assert isinstance(to_, int), f"target data frequency must be in one of {known_freq} or be an integer"
+        assert to_ > 0, f"target data frequency must be an integer greater than 0"
+
+    # type check and convert strings to integers
+    if to_ == from_:
+        return data
+
+    assert to_ > from_, "Cannot extend data from lower to higher frequency. For example, we " \
+                        "cannot go from yearly data to monthly data. How to fill anything in between?"
+
+    t, n, s = data.shape
+    new_t = t / from_ * to_
+
+    assert new_t.is_integer(), f"cannot convert {t} periods to {new_t} periods. Targeted periods must be an integer"
+    new_t = int(new_t)
+
+    return (data.reshape((new_t, t // new_t, n, s)) + 1).prod(1) - 1  # reshape data
 
 
 def _asset_moments(x: np.ndarray, asset: np.ndarray, t_vol: float, t_mean: float, time_unit: int):
