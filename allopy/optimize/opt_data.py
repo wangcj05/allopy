@@ -12,25 +12,6 @@ from allopy.analytics.utils import annualize_returns, coalesce_covariance_matrix
 __all__ = ['OptData', 'calibrate_data', 'coalesce_frequency']
 
 
-def __format_weights__(func):
-    """
-    Formats weight inputs. Raises errors if the weights do not have the right number of elements
-
-    :param func: callable
-        methods where the first input is the ideal weights
-    """
-
-    @wraps(func)
-    def decorator(self: 'OptData', w: Array, *args, **kwargs):
-        w = np.ravel(w)
-
-        assert len(w) == self.n_assets, f'input weights should have {self.n_assets} elements'
-
-        return func(self, w, *args, **kwargs)
-
-    return decorator
-
-
 # noinspection PyMissingConstructor
 class OptData(np.ndarray):
     """
@@ -246,7 +227,6 @@ class OptData(np.ndarray):
         data.n_years = years
         return data
 
-    @__format_weights__
     def cvar(self, w: Array, rebalance: bool, percentile=5.0):
         r"""
         Calculates the CVaR given the weights.
@@ -284,12 +264,12 @@ class OptData(np.ndarray):
         :py:meth:`.portfolio_returns` : Portfolio returns
         """
         assert 0 <= percentile <= 100, "Percentile must be a number between [0, 100]"
+        w = _format_weights(w, self)
 
         returns = self.portfolio_returns(w, rebalance)
         cutoff = np.percentile(returns, percentile)
         return float(returns[returns <= cutoff].mean())
 
-    @__format_weights__
     def expected_return(self, w: Array, rebalance: bool):
         r"""
         Calculates the annualized expected return given a weight vector
@@ -320,10 +300,11 @@ class OptData(np.ndarray):
         :py:meth:`.portfolio_returns` : Portfolio returns
 
         """
+        w = _format_weights(w, self)
         returns = self.portfolio_returns(w, rebalance) + 1
+
         return np.mean(annualize_returns(returns, self.n_years))
 
-    @__format_weights__
     def sharpe_ratio(self, w: Array, rebalance: bool) -> float:
         r"""
         Calculates the portfolio sharpe ratio.
@@ -354,11 +335,12 @@ class OptData(np.ndarray):
         :py:meth:`.volatility` : Volatility
 
         """
+        w = _format_weights(w, self)
         e = 1e6 * self.expected_return(w, rebalance)  # added scale for numerical stability during optimization
         v = 1e6 * self.volatility(w)
+
         return e / v
 
-    @__format_weights__
     def volatility(self, w: Array) -> float:
         r"""
         Calculates the volatility of the portfolio given a weight vector. The volatility is given by:
@@ -379,6 +361,8 @@ class OptData(np.ndarray):
         float
             Portfolio volatility
         """
+        w = _format_weights(w, self)
+
         return float(w.T @ self.cov_mat @ w) ** 0.5
 
     def portfolio_returns(self, w: Array, rebalance: bool) -> np.ndarray:
@@ -404,7 +388,7 @@ class OptData(np.ndarray):
 
         Parameters
         ----------
-        w: {iterable float, ndarray}
+        w: array_like
             Portfolio weights
 
         rebalance: bool
@@ -734,3 +718,11 @@ def _asset_moments(x: np.ndarray, asset: np.ndarray, t_vol: float, t_mean: float
     vol = ((calibrated.reshape((time_unit, y, n)) + 1).prod(0) - 1).std(1).mean(0) - t_vol
     mean = ((calibrated + 1).prod(0) ** (1 / y)).mean() - t_mean - 1
     return vol, mean
+
+
+def _format_weights(w, data: OptData) -> np.ndarray:
+    """Formats weight inputs. Raises errors if the weights do not have the right number of elements"""
+
+    w = np.ravel(w)
+    assert len(w) == data.n_assets, f'input weights should have {data.n_assets} elements'
+    return w
