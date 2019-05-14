@@ -142,7 +142,7 @@ def test_max_eva_st_te_cvar(horizon, overweight):
     max_te = 0.03
     max_cvar = -0.4
 
-    sol = opt.AP.max_eva_st_risk(max_te, max_cvar)
+    sol = opt.AP.maximize_eva(max_te, max_cvar)
 
     assert_equal_or_better_solution(total_return(data), sol, exp_wgt, f'{target} {_id}', bigger_better=True,
                                     constraints=[
@@ -165,7 +165,7 @@ def test_max_eva_st_te(horizon, overweight):
 
     max_te = 0.03
 
-    sol = opt.AP.max_eva_st_risk(max_te)
+    sol = opt.AP.maximize_eva(max_te)
 
     assert_equal_or_better_solution(total_return(data), sol, exp_wgt, f'{target} {_id}', bigger_better=True,
                                     constraints=[
@@ -187,7 +187,7 @@ def test_max_eva_st_cvar(horizon, overweight):
 
     max_cvar = -0.4
 
-    sol = opt.AP.max_eva_st_risk(max_cvar=max_cvar)
+    sol = opt.AP.maximize_eva(max_cvar=max_cvar)
 
     assert_equal_or_better_solution(total_return(data), sol, exp_wgt, f'{target} {_id}', bigger_better=True,
                                     constraints=[
@@ -206,7 +206,7 @@ def test_min_te(horizon, overweight):
 
     opt = ASROptimizer(data, rebalance=REBALANCE)
     opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
-    sol = opt.AP.min_tracking_error()
+    sol = opt.AP.minimize_tracking_error()
 
     assert_equal_or_better_solution(tracking_error(data), sol, exp_wgt, f'{target} {_id}', bigger_better=False)
 
@@ -223,7 +223,7 @@ def test_min_te_st_active_ret(horizon, overweight):
     min_ret = 0.01
 
     opt = ASROptimizer(data, rebalance=REBALANCE).set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
-    sol = opt.AP.min_tracking_error(min_ret, True)
+    sol = opt.AP.minimize_tracking_error(min_ret, True)
 
     assert_equal_or_better_solution(tracking_error(data), sol, exp_wgt, f'{target} {_id}', bigger_better=False,
                                     constraints=[
@@ -244,7 +244,7 @@ def test_min_cvar(horizon, overweight):
         try:
             opt = ASROptimizer(data, rebalance=REBALANCE)
             opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
-            sol = opt.AP.min_cvar()
+            sol = opt.AP.minimize_cvar()
             break
         except nlopt.RoundoffLimited:
             pass
@@ -267,7 +267,7 @@ def test_min_cvar_st_active_ret(horizon, overweight):
         try:
             opt = ASROptimizer(data, rebalance=REBALANCE)
             opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
-            sol = opt.AP.min_cvar(min_ret, True)
+            sol = opt.AP.minimize_cvar(min_ret, True)
             break
         except nlopt.RoundoffLimited:
             pass
@@ -289,7 +289,7 @@ def test_max_information_ratio(horizon, overweight):
 
     opt = ASROptimizer(data, rebalance=REBALANCE)
     opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
-    sol = opt.AP.max_info_ratio()
+    sol = opt.AP.maximize_info_ratio()
 
     def func(x):
         x = [0, *x[1:]]
