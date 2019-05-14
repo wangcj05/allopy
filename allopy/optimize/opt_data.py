@@ -101,12 +101,12 @@ class OptData(np.ndarray):
 
         >>> from allopy.optimize import OptData
         >>> import numpy as np
-
+        >>>
         >>> np.random.seed(8888)
         >>> data = OptData(np.random.standard_normal((60, 1000, 10)))
         >>> data.aggregate_assets([0.3, 0.4, 0.3]).shape
-
-        Alternatively, we can specify the indices directly. Let's assume we want to aggregate indices [4, 1, 6]
+        >>>
+        >>> # Alternatively, we can specify the indices directly. Let's assume we want to aggregate indices [4, 1, 6]
         >>> data = OptData(np.random.standard_normal((60, 1000, 10)))
         >>> data.aggregate_assets([0.3, 0.4, 0.3], [4, 1, 6]).shape
         """
@@ -153,14 +153,14 @@ class OptData(np.ndarray):
         -------
         >>> import numpy as np
         >>> from allopy.optimize import OptData
-
+        >>>
         >>> np.random.seed(8888)
         >>> data = np.random.standard_normal((120, 10000, 7))
         >>> data = OptData(data)
         >>> new_data = data.alter_frequency('quarter')  # changes to new_data will affect data
         >>> print(new_data.shape)
-
-        # making copies, changes to new_data will not affect data
+        >>>
+        >>> # making copies, changes to new_data will not affect data
         >>> new_data = data.alter_frequency(4)  # this is equivalent of month to year
         """
 
@@ -414,6 +414,27 @@ class OptData(np.ndarray):
                 self._unrebalanced_returns_data = np.asarray((self + 1).prod(0) - 1)
             return self._unrebalanced_returns_data @ w
 
+    def set_cov_mat(self, cov_mat: np.ndarray):
+        """
+        Sets the covariance matrix
+
+        Parameters
+        ----------
+        cov_mat: ndarray
+            Asset covariance matrix
+
+        Returns
+        -------
+        OptData
+            Own OptData instance
+        """
+        cov = np.asarray(cov_mat)
+        ideal_shape = (self.n_assets, self.n_assets)
+
+        assert cov.shape == ideal_shape, f"covariance matrix should have shape {ideal_shape}"
+        self._cov_mat = cov_mat
+        return self
+
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """
         Overwrote the default :code:`ufunc` function so that we can get :class:`OptData` if calculated data is
@@ -634,13 +655,13 @@ def alter_frequency(data, from_='month', to_='quarter'):
     -------
     >>> import numpy as np
     >>> from allopy.optimize import alter_frequency
-
+    >>>
     >>> np.random.seed(8888)
     >>> data = np.random.standard_normal((120, 10000, 7))
     >>> new_data = alter_frequency(data, 'month', 'quarter')
     >>> print(new_data.shape)
-
-    # making copies, changes to new_data will not affect data
+    >>>
+    >>> # making copies, changes to new_data will not affect data
     >>> new_data = alter_frequency(data, 12, 4)  # this is equivalent of month to quarter
     """
 

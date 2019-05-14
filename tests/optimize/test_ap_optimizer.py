@@ -121,8 +121,17 @@ def get_opt_data(horizon, overweight):
     corr = read_corr(_id)
     cov = near_psd(corr2cov(corr, vol))
 
-    data = OptData(orig, cov, 4).cut_by_horizon(horizon).calibrate_data(eva).aggregate_assets(passive_wgt)
-    risk_data = OptData(orig, cov, 4).cut_by_horizon(3).calibrate_data(risk_eva).aggregate_assets(passive_wgt)
+    data = (OptData(orig, 'quarterly')
+            .set_cov_mat(cov)
+            .cut_by_horizon(horizon)
+            .calibrate_data(eva)
+            .aggregate_assets(passive_wgt))
+
+    risk_data = (OptData(orig, 'quarterly')
+                 .set_cov_mat(cov)
+                 .cut_by_horizon(3)
+                 .calibrate_data(risk_eva)
+                 .aggregate_assets(passive_wgt))
 
     return _id, data, risk_data, A, b, lb, ub
 
