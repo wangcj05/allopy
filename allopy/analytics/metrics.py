@@ -66,6 +66,21 @@ def performance_ratios_(data,
     dict
         A dictionary containing performance ratios (sharpe, sortino, trasr). Respectively, they are sharpe ratio,
         sortino ratio and tail risk adjusted sharpe ratio
+
+    Examples
+    --------
+    >>> from allopy.analytics import performance_ratios, returns_metrics, risk_metrics
+    >>> from copulae.stats import pearson_rho
+    >>> import numpy as np
+
+    >>> np.random.seed(8)
+    >>> w = np.random.uniform(0, 1, 5)  # 5 assets
+    >>> w /= w.sum()
+    >>> data = np.random.normal(size=(20, 100, 5))  # 20 quarters, 100 trials, 5 assets
+    >>> cvar_data = data[:12]  # take the first 3 years as cvar data
+    >>> cov = np.asarray([pearson_rho(data[i]) for i in range(20)]).mean(0)
+
+    >>> performance_ratios_(data, w, cov, rebalance=False, time_unit=4, cvar_data=cvar_data)
     """
     mean = _calculate_discounted_returns(data, w, rebalance, time_unit, ow, weights)
     std = (w @ cov @ w) ** 0.5
@@ -102,6 +117,24 @@ def performance_ratios(returns_metrics_, risk_metrics_):
     dict
         A dictionary containing performance ratios (sharpe, sortino, trasr). Respectively, they are sharpe ratio,
         sortino ratio and tail risk adjusted sharpe ratio
+
+    Examples
+    --------
+    >>> from allopy.analytics import performance_ratios, returns_metrics, risk_metrics
+    >>> from copulae.stats import pearson_rho
+    >>> import numpy as np
+
+    >>> np.random.seed(8)
+    >>> w = np.random.uniform(0, 1, 5)  # 5 assets
+    >>> w /= w.sum()
+    >>> data = np.random.normal(size=(20, 100, 5))  # 20 quarters, 100 trials, 5 assets
+    >>> cvar_data = data[:12]  # take the first 3 years as cvar data
+    >>> cov = np.asarray([pearson_rho(data[i]) for i in range(20)]).mean(0)
+
+    >>> returns_metrics_ = returns_metrics(data, w, cov, rebalance=False, time_unit=4)
+    >>> risk_metrics_ = risk_metrics(data, w, rebalance=True, percentile=5, time_unit=4, cvar_data=cvar_data)
+    >>> performance_ratios(returns_metrics_, risk_metrics_)
+
     """
     cvar = risk_metrics_['cvar']
     sstd = risk_metrics_['sstd']
@@ -121,7 +154,7 @@ def risk_metrics(data,
                  percentile=5.0,
                  tail_risk_cutoff=-30.0,
                  time_unit=4,
-                 cvar_data: Optional[np.ndarray] = None):
+                 cvar_data=None):
     """
     Calculates the risk metrics
 
@@ -156,6 +189,20 @@ def risk_metrics(data,
     -------
     dict
         A dictionary containing risk metrics (sstd, cvar, tail_risk)
+
+    Examples
+    --------
+    >>> from allopy.analytics import risk_metrics
+    >>> import numpy as np
+
+
+    >>> np.random.seed(8)
+    >>> w = np.random.uniform(0, 1, 5)  # 5 assets
+    >>> w /= w.sum()
+    >>> data = np.random.normal(size=(20, 100, 5))  # 20 quarters, 100 trials, 5 assets
+    >>> cvar_data = data[:12]  # take the first 3 years as cvar data
+
+    >>> risk_metrics(data, w, rebalance=False, percentile=5, time_unit=4, cvar_data=cvar_data)
     """
     if cvar_data is None:
         cvar_data = data
@@ -251,7 +298,7 @@ def returns_metrics(data,
         represents a month, set this to 12. If quarterly, set to 4. Defaults to 4 which means 1 period represents
         a quarter
 
-    ow: iterable arrays, optional
+    ow: array_like, optional
         Other weight vectors. Each of these weight vectors must have the same length as :code:`w`.
 
     weights: iterable float, optional
@@ -265,6 +312,22 @@ def returns_metrics(data,
     -------
     dict
         A dictionary containing returns metrics (kurtosis, mean, skew, std)
+
+    Examples
+    --------
+    >>> from allopy.analytics import returns_metrics
+    >>> from copulae.stats import pearson_rho
+    >>> import numpy as np
+
+
+    >>> np.random.seed(8)
+    >>> w = np.random.uniform(0, 1, 5)  # 5 assets
+    >>> w /= w.sum()
+    >>> data = np.random.normal(size=(20, 100, 5))  # 20 quarters, 100 trials, 5 assets
+
+    >>> cov = np.asarray([pearson_rho(data[i]) for i in range(20)]).mean(0)
+    >>> returns_metrics(data, w, cov, False, time_unit=4)
+    {'kurtosis': 53.575811562154286, 'mean': -0.8698538769792689, 'skew': 1.445958384464585, 'std': 0.48492164134823174}
     """
     w = np.ravel(w)
 
