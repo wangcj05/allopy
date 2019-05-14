@@ -15,7 +15,6 @@ Real = Union[int, float]  # a real number
 OptReal = Optional[Real]
 
 
-# noinspection PyPep8Naming
 class ASROptimizer(BaseOptimizer):
     def __init__(self, data: Union[np.ndarray, OptData], algorithm=LD_SLSQP,
                  cvar_data: Optional[Union[np.ndarray, OptData]] = None, rebalance=False,
@@ -67,8 +66,23 @@ class ASROptimizer(BaseOptimizer):
         self.data = data
         self.cvar_data = cvar_data
 
-        self.AP = APObjectives(self)
         self._rebalance = rebalance
+
+    @property
+    def AP(self):
+        """
+        Active objectives. Active is used when the returns stream of the simulation is the over (under) performance of
+        the particular asset class over the benchmark. (The first index in the assets axis)
+
+        For example, if you have a benchmark (beta) returns stream, 9 other asset classes over 10000 trials and 40 periods,
+        the simulation tensor will be 40 x 10000 x 10 with the first asset axis being the returns of the benchmark. In
+        such a case, the active portfolio optimizer can be used to optimize the portfolio relative to the benchmark.
+        """
+        return APObjectives(self)
+
+    @property
+    def PP(self):
+        return PPObjectives(self)
 
     def adjust_returns(self, eva: Optional[Iterable[float]] = None, vol: Optional[Iterable[float]] = None):
         self.data = self.data.calibrate_data(eva, vol)
@@ -103,7 +117,7 @@ class APObjectives:
     def __init__(self, asr: ASROptimizer):
         self.asr = asr
 
-    def max_eva_st_risk(self, max_te: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None):
+    def maximize_eva(self, max_te: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None) -> np.ndarray:
         """
         Optimizes the expected value added of the portfolio subject to max tracking error and/or cvar constraint.
         At least one of the tracking error or cvar constraint must be defined.
@@ -134,15 +148,16 @@ class APObjectives:
                                                           "constraint, we must at least specify max CVaR or max TE"
 
         if max_te is not None:
-            opt.add_inequality_constraint(tracking_error_constraint(opt.data, max_te))
+            opt.add_inequality_constraint(tracking_error_ctr(opt.data, max_te))
 
         if max_cvar is not None:
-            opt.add_inequality_constraint(cvar_cons(opt.data, max_cvar, opt.rebalance))
+            opt.add_inequality_constraint(cvar_ctr(opt.data, max_cvar, opt.rebalance))
 
         opt.set_max_objective(expected_returns_obj(opt.data, opt.rebalance))
         return opt.optimize(x0)
 
-    def min_tracking_error(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None):
+    def minimize_tracking_error(self, min_ret: OptReal = None, use_active_return=False,
+                                x0: OptArray = None) -> np.ndarray:
         """
         Minimizes the tracking error of the portfolio
 
@@ -156,7 +171,9 @@ class APObjectives:
 
         use_active_return: boolean, optional
             If True, return is calculated as active return, that is the first (passive) weight will be set to 0.
-            Otherwise, use the total return. Defaults to False
+            Otherwise, use the total return. Defaults to True. This is important in that the min_ret parameter
+            should reflect pure alpha as all the beta in the passive have been stripped away when this argument
+            is True.
 
         x0: ndarray
             Initial vector. Starting position for free variables
@@ -169,12 +186,12 @@ class APObjectives:
         opt = self.asr
 
         if min_ret is not None:
-            opt.add_inequality_constraint(expected_returns_cons(opt.data, min_ret, use_active_return, opt.rebalance))
+            opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, use_active_return, opt.rebalance))
 
         opt.set_min_objective(tracking_error_obj(opt.data))
         return opt.optimize(x0)
 
-    def min_cvar(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None):
+    def minimize_cvar(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None) -> np.ndarray:
         """
         Minimizes the conditional value at risk of the portfolio. The present implementation actually minimizes the
         expected shortfall.
@@ -189,7 +206,9 @@ class APObjectives:
 
         use_active_return: boolean, optional
             If True, return is calculated as active return, that is the first (passive) weight will be set to 0.
-            Otherwise, use the total return. Defaults to True
+            Otherwise, use the total return. Defaults to True. This is important in that the min_ret parameter
+            should reflect pure alpha as all the beta in the passive have been stripped away when this argument
+            is True.
 
         x0: ndarray
             Initial vector. Starting position for free variables
@@ -202,26 +221,163 @@ class APObjectives:
         opt = self.asr
 
         if min_ret is not None:
-            opt.add_inequality_constraint(expected_returns_cons(opt.data, min_ret, use_active_return, opt.rebalance))
+            opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, use_active_return, opt.rebalance))
 
         opt.set_min_objective(cvar_obj(opt.data, opt.rebalance))
         return opt.optimize(x0)
 
-    def max_info_ratio(self, x0: OptArray = None):
+    def maximize_info_ratio(self, x0: OptArray = None) -> np.ndarray:
         """
         Maximizes the information ratio the portfolio.
 
-        :param x0: numeric iterable, optional
+        Parameters
+        ----------
+        x0: array_like, optional
             initial vector. Starting position for free variables
-        :return: ndarray
-            optimal weights
+
+        Returns
+        -------
+        ndarray
+            Optimal weights
         """
         opt = self.asr
         opt.set_max_objective(info_ratio_obj(opt.data, opt.rebalance))
         return opt.optimize(x0)
 
 
-def cvar_cons(data: OptData, max_cvar: Real, rebalance=False):
+class PPObjectives:
+    """
+    Policy portfolio objectives.
+
+    Policy portfolio optimization is used only on the asset classes that comprises the policy portfolio. The data
+    (simulation) tensor used must be 3 dimensional with data
+
+    For example, if you have a benchmark (beta) returns stream, 9 other asset classes over 10000 trials and 40 periods,
+    the simulation tensor will be 40 x 10000 x 10 with the first asset axis being the returns of the benchmark. In
+    such a case, the active portfolio optimizer can be used to optimize the portfolio relative to the benchmark.
+
+    This is a singleton class meant for easier optimization regime access for the ASROptimizer
+    """
+
+    def __init__(self, asr: ASROptimizer):
+        self.asr = asr
+
+    def maximize_returns(self, max_vol: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None) -> np.ndarray:
+        """
+        Optimizes the expected returns of the portfolio subject to max volatility and/or cvar constraint.
+        At least one of the tracking error or cvar constraint must be defined.
+
+        If `max_te` is defined, the tracking error will be offset by that amount. Maximum tracking error is usually
+        defined by a positive number. Meaning if you would like to cap tracking error to 3%, max_te should be set to
+        0.03.
+
+        Parameters
+        ----------
+        max_vol: scalar, optional
+            Maximum tracking error allowed
+
+        max_cvar: scalar, optional
+            Maximum cvar_data allowed
+
+        x0: ndarray
+            Initial vector. Starting position for free variables
+
+        Returns
+        -------
+        ndarray
+            Optimal weights
+        """
+        opt = self.asr
+
+        assert not (max_vol is None and max_cvar is None), "If maximizing returns subject to some sort of vol/CVaR " \
+                                                           "constraint, we must at least specify max CVaR or max vol"
+
+        if max_vol is not None:
+            opt.add_inequality_constraint(vol_ctr(opt.data, max_vol))
+
+        if max_cvar is not None:
+            opt.add_inequality_constraint(cvar_ctr(opt.data, max_cvar, opt.rebalance))
+
+        opt.set_max_objective(expected_returns_obj(opt.data, opt.rebalance))
+        return opt.optimize(x0)
+
+    def minimize_volatility(self, min_ret: OptReal = None, x0: OptArray = None) -> np.ndarray:
+        """
+        Minimizes the tracking error of the portfolio
+
+        If the `min_ret` is specified, the optimizer will search for an optimal portfolio where the returns are
+        at least as large as the value specified (if possible).
+
+        Parameters
+        ----------
+        min_ret: float, optional
+            The minimum returns required for the portfolio
+
+        x0: ndarray
+            Initial vector. Starting position for free variables
+
+        Returns
+        -------
+        ndarray
+            Optimal weights
+        """
+        opt = self.asr
+
+        if min_ret is not None:
+            opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, False, opt.rebalance))
+
+        opt.set_min_objective(vol_obj(opt.data))
+        return opt.optimize(x0)
+
+    def minimize_cvar(self, min_ret: OptReal = None, x0: OptArray = None) -> np.ndarray:
+        """
+        Minimizes the conditional value at risk of the portfolio. The present implementation actually minimizes the
+        expected shortfall.
+
+        If the `min_ret` is specified, the optimizer will search for an optimal portfolio where the returns are at least
+        as large as the value specified (if possible).
+
+        Parameters
+        ----------
+        min_ret: float, optional
+            The minimum returns required for the portfolio
+
+        x0: ndarray
+            Initial vector. Starting position for free variables
+
+        Returns
+        -------
+        ndarray
+            Optimal weights
+        """
+        opt = self.asr
+
+        if min_ret is not None:
+            opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, False, opt.rebalance))
+
+        opt.set_min_objective(cvar_obj(opt.data, opt.rebalance))
+        return opt.optimize(x0)
+
+    def maximize_sharpe_ratio(self, x0: OptArray) -> np.ndarray:
+        """
+        Maximizes the sharpe ratio the portfolio.
+
+        Parameters
+        ----------
+        x0: array_like, optional
+            initial vector. Starting position for free variables
+
+        Returns
+        -------
+        ndarray
+            Optimal weights
+        """
+        opt = self.asr
+        opt.set_max_objective(sharpe_ratio_obj(opt.data, opt.rebalance))
+        return opt.optimize(x0)
+
+
+def cvar_ctr(data: OptData, max_cvar: Real, rebalance=False):
     """
     Creates a cvar constraint function.
 
@@ -244,7 +400,7 @@ def cvar_obj(data: OptData, rebalance=False):
     return cvar
 
 
-def expected_returns_cons(data: OptData, min_ret: Real, use_active_return: bool, rebalance=False):
+def expected_returns_ctr(data: OptData, min_ret: Real, use_active_return: bool, rebalance=False):
     exp_ret = expected_returns_obj(data, rebalance)
 
     def exp_ret_con(w):
@@ -270,7 +426,14 @@ def info_ratio_obj(data: OptData, rebalance=False):
     return info_ratio
 
 
-def tracking_error_constraint(data: OptData, max_te: Real):
+def sharpe_ratio_obj(data: OptData, rebalance=True):
+    def sharpe_ratio(w):
+        return data.sharpe_ratio(w, rebalance)
+
+    return sharpe_ratio
+
+
+def tracking_error_ctr(data: OptData, max_te: Real):
     te_obj = tracking_error_obj(data)
 
     def te(w):
@@ -284,3 +447,19 @@ def tracking_error_obj(data: OptData):
         return data.volatility([0, *w[1:]])
 
     return te
+
+
+def vol_ctr(data: OptData, max_vol: Real):
+    v = vol_obj(data)
+
+    def vol(w):
+        return v(w) - float(max_vol)
+
+    return vol
+
+
+def vol_obj(data: OptData):
+    def vol(w):
+        return data.volatility(w)
+
+    return vol
