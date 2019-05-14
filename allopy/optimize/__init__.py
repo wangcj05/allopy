@@ -1,3 +1,3 @@
 from .asr import ASROptimizer
 from .base import BaseOptimizer
-from .opt_data import OptData, calibrate_data, coalesce_frequency
+from .opt_data import OptData, calibrate_data, alter_frequency

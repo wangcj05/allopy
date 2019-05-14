@@ -1,6 +1,5 @@
 import warnings
-from functools import wraps
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Union
 
 import numpy as np
 import scipy.optimize as opt
@@ -9,7 +8,7 @@ from copulae.types import Array
 
 from allopy.analytics.utils import annualize_returns, coalesce_covariance_matrix
 
-__all__ = ['OptData', 'calibrate_data', 'coalesce_frequency']
+__all__ = ['OptData', 'calibrate_data', 'alter_frequency']
 
 
 # noinspection PyMissingConstructor
@@ -19,11 +18,11 @@ class OptData(np.ndarray):
     applied to numpy arrays can be applied to an instance of this object too. By default, any index
     """
 
-    def __new__(cls, data: np.ndarray, cov_mat: Optional[np.ndarray] = None, time_unit=12):
+    def __new__(cls, data: np.ndarray, time_unit='monthly'):
         obj = np.asarray(data).view(cls)
         return obj
 
-    def __init__(self, data: np.ndarray, cov_mat: Optional[np.ndarray] = None, time_unit=12):
+    def __init__(self, data: np.ndarray, time_unit='monthly'):
         """
         Returns an OptData class which is an enhancement of ndarray with helper methods
 
@@ -33,42 +32,38 @@ class OptData(np.ndarray):
             3D tensor where the first axis represents the time period, the second axis represents the trials
             and the third axis represents the assets
 
-        cov_mat: ndarray, optional
-            2D matrix which describes the covariance among the asset classes. If it is not specified, it will default to
-            the sample covariance from the data tensor
-
-        time_unit: int, optional
+        time_unit: {int, 'monthly', 'quarterly', 'semi-annually', 'yearly'}, optional
             Specifies how many units (first axis) is required to represent a year. For example, if each time period
             represents a month, set this to 12. If quarterly, set to 4. Defaults to 12 which means 1 period represents
-            a month
+            a month. Alternatively, specify one of 'monthly', 'quarterly', 'semi-annually' or 'yearly'
         """
 
         assert data.ndim == 3, "Data must be 3 dimensional with shape like (t, n, a) where `t` represents the time " \
                                "periods, `n` represents the trials and `a` represents the assets"
 
         periods, trials, n_assets = data.shape
-        if cov_mat is None:
-            # empirical covariance taken along the time-asset axis then averaged by trials
-            cov_mat = np.mean([np.cov(data[:, i, :].T) for i in range(trials)], 0)
-            cov_mat = near_psd(cov_mat)
 
+        # empirical covariance taken along the time-asset axis then averaged by trials
+        cov_mat = np.mean([np.cov(data[:, i, :].T) for i in range(trials)], 0)
+        cov_mat = near_psd(cov_mat)
         assert is_psd(cov_mat), "covariance matrix must be positive semi-definite"
 
         if np.allclose(np.diag(cov_mat), 1) and np.alltrue(np.abs(cov_mat) <= 1):
             warnings.warn("The covariance matrix feels like a correlation matrix. Are you sure it's correct?")
 
-        self.cov_mat = cov_mat
-        self.time_unit = time_unit
+        self.time_unit = _translate_frequency(time_unit)
         self.n_years = periods / self.time_unit
         self.n_assets = n_assets
 
         # minor optimization when using rebalanced optimization. This is essentially a cache
         self._unrebalanced_returns_data: np.ndarray = None
+        self._cov_mat = cov_mat
 
     def __array_finalize__(self, obj):
         if obj is None:
             return
-        self.cov_mat = getattr(obj, 'cov_mat', None)
+
+        self._cov_mat = getattr(obj, 'cov_mat', None)
         self.time_unit = getattr(obj, 'time_unit', 12)
         self.n_years = getattr(obj, 'n_years', 0)
         self.n_assets = getattr(obj, 'n_assets', 0)
@@ -128,40 +123,12 @@ class OptData(np.ndarray):
         agg = self[..., columns] @ w
         mask = [i not in columns for i in range(self.n_assets)]  # columns that have not changed
 
-        cov = coalesce_covariance_matrix(self.cov_mat, w, columns)
-        data = OptData(np.concatenate([agg[..., None], self[..., mask]], axis=2), cov, time_unit=self.time_unit)
+        data = OptData(np.concatenate([agg[..., None], self[..., mask]], axis=2), time_unit=self.time_unit)
+        data.cov_mat = coalesce_covariance_matrix(self.cov_mat, w, columns)
 
         return data.copy() if copy else data
 
-    def calibrate_data(self, mean: Optional[Iterable[float]] = None, sd: Optional[Iterable[float]] = None,
-                       inplace=False):
-        """
-        Calibrates the data given the target mean and standard deviation.
-
-        Parameters
-        ----------
-        mean: iterable float, optional
-            the targeted mean vector
-
-        sd: iterable float, optional
-            the targeted float vector
-
-        inplace: boolean, optional
-            If True, the :class:`OptData` is modified inplace. This means that the underlying :class:`OptData`
-            is changed. If False, a new instance of :class:`OptData` is returned
-
-        Returns
-        -------
-        OptData
-            an instance of :class:`OptData`
-        """
-        data = calibrate_data(self, mean, sd, self.time_unit)
-        if inplace:
-            self[:] = OptData(data[:], self.cov_mat, self.time_unit)
-            return self
-        return OptData(data, self.cov_mat, self.time_unit)
-
-    def coalesce_frequency(self, to='quarter'):
+    def alter_frequency(self, to='quarter'):
         """
         Coalesces a the 3D tensor to a lower frequency.
 
@@ -190,15 +157,56 @@ class OptData(np.ndarray):
         >>> np.random.seed(8888)
         >>> data = np.random.standard_normal((120, 10000, 7))
         >>> data = OptData(data)
-        >>> new_data = data.coalesce_frequency('quarter')  # changes to new_data will affect data
+        >>> new_data = data.alter_frequency('quarter')  # changes to new_data will affect data
         >>> print(new_data.shape)
 
         # making copies, changes to new_data will not affect data
-        >>> new_data = data.coalesce_frequency(4)  # this is equivalent of month to year
+        >>> new_data = data.alter_frequency(4)  # this is equivalent of month to year
         """
 
-        data = coalesce_frequency(np.asarray(self), self.time_unit, to)
-        return OptData(data, self.cov_mat, to)  # Cast as OptData
+        data = alter_frequency(np.asarray(self), self.time_unit, to)
+        return OptData(data, to)  # Cast as OptData
+
+    def calibrate_data(self, mean: Optional[Iterable[float]] = None, sd: Optional[Iterable[float]] = None,
+                       inplace=False):
+        """
+        Calibrates the data given the target mean and standard deviation.
+
+        Parameters
+        ----------
+        mean: iterable float, optional
+            the targeted mean vector
+
+        sd: iterable float, optional
+            the targeted float vector
+
+        inplace: boolean, optional
+            If True, the :class:`OptData` is modified inplace. This means that the underlying :class:`OptData`
+            is changed. If False, a new instance of :class:`OptData` is returned
+
+        Returns
+        -------
+        OptData
+            an instance of :class:`OptData`
+        """
+        data = calibrate_data(self, mean, sd, self.time_unit)
+        if inplace:
+            self[:] = OptData(data[:], self.time_unit)
+            return self
+        return OptData(data, self.time_unit)
+
+    @property
+    def cov_mat(self):
+        """Returns the covariance matrix of the OptData"""
+        return self._cov_mat
+
+    @cov_mat.setter
+    def cov_mat(self, cov_mat: np.ndarray):
+        cov = np.asarray(cov_mat)
+        ideal_shape = (self.n_assets, self.n_assets)
+
+        assert cov.shape == ideal_shape, f"covariance matrix should have shape {ideal_shape}"
+        self._cov_mat = cov_mat
 
     def cut_by_horizon(self, years: float, copy=True):
         """
@@ -500,7 +508,7 @@ class OptData(np.ndarray):
         """
         *state, meta = super().__reduce__()
         meta = meta + ({
-                           'cov_mat': self.cov_mat,
+                           'cov_mat': self._cov_mat,
                            'n_years': self.n_years,
                            'n_assets': self.n_assets,
                            'time_unit': self.time_unit,
@@ -592,7 +600,7 @@ def calibrate_data(data: np.ndarray, mean: Optional[Iterable[float]] = None, sd:
     return data
 
 
-def coalesce_frequency(data, from_='month', to_='quarter'):
+def alter_frequency(data, from_='month', to_='quarter'):
     """
     Coalesces a the 3D tensor to a lower frequency.
 
@@ -625,48 +633,21 @@ def coalesce_frequency(data, from_='month', to_='quarter'):
     Example
     -------
     >>> import numpy as np
-    >>> from allopy.optimize import coalesce_frequency
+    >>> from allopy.optimize import alter_frequency
 
     >>> np.random.seed(8888)
     >>> data = np.random.standard_normal((120, 10000, 7))
-    >>> new_data = coalesce_frequency(data, 'month', 'quarter')
+    >>> new_data = alter_frequency(data, 'month', 'quarter')
     >>> print(new_data.shape)
 
     # making copies, changes to new_data will not affect data
-    >>> new_data = coalesce_frequency(data, 12, 4)  # this is equivalent of month to quarter
+    >>> new_data = alter_frequency(data, 12, 4)  # this is equivalent of month to quarter
     """
 
-    known_freq = ('m', 'month', 'q', 'quarter', 'y', 'year')
-
-    if isinstance(from_, str):
-        assert from_.lower() in known_freq, f"initial data frequency must be in one of {known_freq} or be an integer"
-
-        from_.lower()
-        if from_ in ('m', 'month'):
-            from_ = 12
-        elif from_ in ('q', 'quarter'):
-            from_ = 4
-        else:  # year
-            from_ = 1
-    else:
-        assert isinstance(from_, int), f"initial data frequency must be in one of {known_freq} or be an integer"
-        assert from_ > 0, f"initial data frequency must be an integer greater than 0"
-
-    if isinstance(to_, str):
-        assert to_.lower() in known_freq, f"target data frequency must be in one of {known_freq} or be an integer"
-
-        to_.lower()
-        if to_ in ('m', 'month'):
-            to_ = 12
-        elif to_ in ('q', 'quarter'):
-            to_ = 4
-        else:  # year
-            to_ = 1
-    else:
-        assert isinstance(to_, int), f"target data frequency must be in one of {known_freq} or be an integer"
-        assert to_ > 0, f"target data frequency must be an integer greater than 0"
-
     # type check and convert strings to integers
+    to_ = _translate_frequency(to_)
+    from_ = _translate_frequency(from_)
+
     if to_ == from_:
         return data
 
@@ -726,3 +707,22 @@ def _format_weights(w, data: OptData) -> np.ndarray:
     w = np.ravel(w)
     assert len(w) == data.n_assets, f'input weights should have {data.n_assets} elements'
     return w
+
+
+def _translate_frequency(_freq: Union[str, int]) -> int:
+    """Translates a given frequency to the integer equivalent with checks"""
+    if isinstance(_freq, str):
+        _freq_ = _freq.lower()
+        if _freq_ in ('m', 'month', 'monthly'):
+            return 12
+        elif _freq_ in ('s', 'semi-annual', 'semi-annually'):
+            return 6
+        elif _freq_ in ('q', 'quarter', 'quarterly'):
+            return 4
+        elif _freq_ in ('y', 'a', 'year', 'annual', 'yearly', 'annually'):  # year
+            return 1
+        else:
+            raise ValueError(f'unknown frequency {_freq}. Use one of month, semi-annual, quarter or annual')
+
+    assert isinstance(_freq, int) and _freq > 0, 'frequency can only be a positive integer or a string name'
+    return _freq
