@@ -267,7 +267,7 @@ class PPObjectives:
         Optimizes the expected returns of the portfolio subject to max volatility and/or cvar constraint.
         At least one of the tracking error or cvar constraint must be defined.
 
-        If `max_te` is defined, the tracking error will be offset by that amount. Maximum tracking error is usually
+        If `max_vol` is defined, the tracking error will be offset by that amount. Maximum tracking error is usually
         defined by a positive number. Meaning if you would like to cap tracking error to 3%, max_te should be set to
         0.03.
 
