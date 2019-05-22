@@ -1,5 +1,5 @@
 from typing import Iterable, Optional, Union
-
+import scipy.optimize as so
 import numpy as np
 from copulae.types import Array
 
@@ -55,12 +55,12 @@ class ASROptimizer(BaseOptimizer):
         cov_mat = kwargs.get('cov_mat', None)
         time_unit = kwargs.get('period_year_length', 4)
         if not isinstance(data, OptData):
-            data = OptData(data, cov_mat, time_unit)
+            data = OptData(data, time_unit)
 
         if cvar_data is None:
             cvar_data = data.copy()
         elif not isinstance(cvar_data, OptData):
-            cvar_data = OptData(cvar_data, cov_mat, time_unit)
+            cvar_data = OptData(cvar_data, time_unit)
 
         super().__init__(data.n_assets, algorithm, eps, *args, **kwargs)
         self.data = data
@@ -117,12 +117,6 @@ class APObjectives:
     def __init__(self, asr: ASROptimizer):
         self.asr = asr
 
-    def _initial_weights(self, x0):
-        if x0 is None:
-            x0 = np.random.uniform(self.asr.lower_bounds, self.asr.upper_bounds)
-
-        return x0
-
     def maximize_eva(self, max_te: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None,
                      tol=0.0) -> np.ndarray:
         """
@@ -164,7 +158,7 @@ class APObjectives:
             opt.add_inequality_constraint(cvar_ctr(opt.data, max_cvar, opt.rebalance), tol)
 
         opt.set_max_objective(expected_returns_obj(opt.data, opt.rebalance))
-        return opt.optimize(self._initial_weights(x0))
+        return opt.optimize(x0)
 
     def minimize_tracking_error(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None,
                                 tol=0.0) -> np.ndarray:
@@ -203,7 +197,7 @@ class APObjectives:
                                           tol)
 
         opt.set_min_objective(tracking_error_obj(opt.data))
-        return opt.optimize(self._initial_weights(x0))
+        return opt.optimize(x0)
 
     def minimize_cvar(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None,
                       tol=0.0) -> np.ndarray:
@@ -243,7 +237,7 @@ class APObjectives:
                                           tol)
 
         opt.set_min_objective(cvar_obj(opt.data, opt.rebalance))
-        return opt.optimize(self._initial_weights(x0))
+        return opt.optimize(x0)
 
     def maximize_info_ratio(self, x0: OptArray = None) -> np.ndarray:
         """
@@ -261,7 +255,7 @@ class APObjectives:
         """
         opt = self.asr
         opt.set_max_objective(info_ratio_obj(opt.data, opt.rebalance))
-        return opt.optimize(self._initial_weights(x0))
+        return opt.optimize(x0)
 
 
 class PPObjectives:
@@ -280,12 +274,19 @@ class PPObjectives:
 
     def __init__(self, asr: ASROptimizer):
         self.asr = asr
+        self.asr.add_equality_constraint(lambda w: sum(w) - 1, 1e-6)
 
     def _initial_weights(self, x0):
-        if x0 is None:
-            x0 = np.random.uniform(self.asr.lower_bounds, self.asr.upper_bounds)
+        """Smart guess for initial feasible solution"""
+        assert sum(self.asr.upper_bounds) >= 1, "Sum of upper bounds must be >= 1. Else there is no feasible solution"
 
-        return x0 / x0.sum()
+        if x0 is None:
+            x0 = so.minimize(lambda x: sum(x),
+                             np.random.uniform(self.asr.lower_bounds, self.asr.upper_bounds),
+                             constraints=[{'type': 'eq', 'fun': lambda x: sum(x) - 1}],
+                             bounds=so.Bounds(self.asr.lower_bounds, self.asr.upper_bounds)).x
+
+        return x0
 
     def maximize_returns(self, max_vol: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None,
                          tol=0.0) -> np.ndarray:

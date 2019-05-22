@@ -84,12 +84,17 @@ class BaseOptimizer:
 
     def optimize(self, x0: Optional[Iterable[float]] = None, *args) -> np.ndarray:
         """
-        Runs the optimizer. If no initial vector is set, the optimizer will randomly generate a feasible one.
+        Runs the optimizer and returns the optimal results if any.
+
+        If no initial vector is set, the optimizer will ATTEMPT to randomly generate a feasible one. However,
+        there is no guarantee in the feasibility. In general, it is a tough problem to find a feasible solution
+        in high-dimensional spaces, much more an optimal one.
 
         Parameters
         ----------
         x0: iterable float
-            Initial vector. Starting position for free variables
+            Initial vector. Starting position for free variables. In many cases, especially for derivative-based
+            optimizers, it is important for the initial vector to be already feasible.
 
         args:
             other arguments to pass into the optimizer
