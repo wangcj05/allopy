@@ -170,7 +170,7 @@ class BaseOptimizer:
 
         return self
 
-    def add_inequality_constraint(self, fn: Callable, *args):
+    def add_inequality_constraint(self, fn: Callable, tol=0.0):
         """
         Adds the equality constraint function in standard form, A <= b. If the gradient of the constraint function is
         not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
@@ -181,15 +181,15 @@ class BaseOptimizer:
         fn: Callable
             Constraint function
 
-        args:
-            Other arguments to pass to the constraint function. This can be ignored in most cases
+        tol: float
+            A tolerance in judging feasibility for the purposes of stopping the optimization
         """
         f = self._get_gradient_func(fn)
         self._hin[fn.__name__] = fn
-        self._model.add_inequality_constraint(f, *args)
+        self._model.add_inequality_constraint(f, tol)
         return self
 
-    def add_equality_constraint(self, fn: Callable, *args):
+    def add_equality_constraint(self, fn: Callable, tol=0.0):
         """
         Adds the equality constraint function in standard form, A = b. If the gradient of the constraint function
         is not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
@@ -200,15 +200,15 @@ class BaseOptimizer:
         fn: Callable
             Constraint function
 
-        args:
-            Other arguments to pass to the constraint function. This can be ignored in most cases
+        tol: float
+            A tolerance in judging feasibility for the purposes of stopping the optimization
         """
         f = self._get_gradient_func(fn)
         self._heq[fn.__name__] = fn
-        self._model.add_equality_constraint(f, *args)
+        self._model.add_equality_constraint(f, tol)
         return self
 
-    def add_inequality_matrix_constraint(self, A, b):
+    def add_inequality_matrix_constraint(self, A, b, tol=0.0):
         r"""
         Sets inequality constraints in standard matrix form.
 
@@ -221,18 +221,21 @@ class BaseOptimizer:
 
         b: {scalar, ndarray}
             Inequality vector or scalar. If scalar, it will be propagated.
+
+        tol: float
+            A tolerance in judging feasibility for the purposes of stopping the optimization
         """
         A, b = _validate_matrix_constraints(A, b)
 
         for i, row, _b in zip(range(len(b)), A, b):
             fn = _create_matrix_constraint(row, _b)
             f = _create_gradient_func(fn, self._eps)
-            self._model.add_inequality_constraint(f)
+            self._model.add_inequality_constraint(f, tol)
             self._hin[f'A_{i}'] = fn
 
         return self
 
-    def add_equality_matrix_constraint(self, Aeq, beq):
+    def add_equality_matrix_constraint(self, Aeq, beq, tol=0.0):
         r"""
         Sets equality constraints in standard matrix form.
 
@@ -241,17 +244,20 @@ class BaseOptimizer:
         Parameters
         ----------
         Aeq: {iterable float, ndarray}
-            Equality matrix. Must be 2 dimensional.
+            Equality matrix. Must be 2 dimensional
 
         beq: {scalar, ndarray}
-            Equality vector or scalar. If scalar, it will be propagated.ndarray
+            Equality vector or scalar. If scalar, it will be propagated
+
+        tol: float
+            A tolerance in judging feasibility for the purposes of stopping the optimization
         """
         Aeq, beq = _validate_matrix_constraints(Aeq, beq)
 
         for i, row, _beq in zip(range(len(beq)), Aeq, beq):
             fn = _create_matrix_constraint(row, _beq)
             f = _create_gradient_func(fn, self._eps)
-            self._model.add_equality_constraint(f)
+            self._model.add_equality_constraint(f, tol)
             self._heq[f'Aeq_{i}'] = fn
 
         return self
