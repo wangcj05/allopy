@@ -593,7 +593,7 @@ def calibrate_data(data: np.ndarray, mean: Optional[Iterable[float]] = None, sd:
 
     if sd is None:
         y = s[0] // time_unit
-        target_vols = ((data.reshape((time_unit, y, *s[1:])) + 1).prod(0) - 1).std(1).mean(0)
+        target_vols = ((data.reshape((y, time_unit, *s[1:])) + 1).prod(1) - 1).std(1).mean(0)
     else:
         target_vols = np.asarray(sd)
 
@@ -717,14 +717,13 @@ def _asset_moments(x: np.ndarray, asset: np.ndarray, t_vol: float, t_mean: float
     y = t // time_unit
 
     calibrated = asset * x[0] + x[1]
-    vol = ((calibrated.reshape((time_unit, y, n)) + 1).prod(0) - 1).std(1).mean(0) - t_vol
+    vol = ((calibrated.reshape((y, time_unit, n)) + 1).prod(1) - 1).std(1).mean(0) - t_vol
     mean = ((calibrated + 1).prod(0) ** (1 / y)).mean() - t_mean - 1
     return vol, mean
 
 
 def _format_weights(w, data: OptData) -> np.ndarray:
     """Formats weight inputs. Raises errors if the weights do not have the right number of elements"""
-
     w = np.ravel(w)
     assert len(w) == data.n_assets, f'input weights should have {data.n_assets} elements'
     return w
