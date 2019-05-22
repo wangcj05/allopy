@@ -42,16 +42,18 @@ class OptData(np.ndarray):
                                "periods, `n` represents the trials and `a` represents the assets"
 
         periods, trials, n_assets = data.shape
+        self.time_unit = _translate_frequency(time_unit)
 
         # empirical covariance taken along the time-asset axis then averaged by trials
-        cov_mat = np.mean([np.cov(data[:, i, :].T) for i in range(trials)], 0)
+        # annualized data
+        a = (data.reshape((periods // self.time_unit, self.time_unit, trials, n_assets)) + 1).prod(1) - 1
+        cov_mat = np.mean([np.cov(a[:, i, :].T) for i in range(trials)], 0)
         cov_mat = near_psd(cov_mat)
         assert is_psd(cov_mat), "covariance matrix must be positive semi-definite"
 
         if np.allclose(np.diag(cov_mat), 1) and np.alltrue(np.abs(cov_mat) <= 1):
             warnings.warn("The covariance matrix feels like a correlation matrix. Are you sure it's correct?")
 
-        self.time_unit = _translate_frequency(time_unit)
         self.n_years = periods / self.time_unit
         self.n_assets = n_assets
 
