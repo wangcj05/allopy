@@ -4,14 +4,15 @@ This file tests AP optimization. By default, AP optimization does not rebalance 
 We test the optimization regimes on 5 and 10 years with overweight set to False and True for a total of 4 combinations.
 Overweight refers to whether 2 additional asset classes are added.
 
-We have 9 ASR optimization programs:
+We have 8 ASR optimization programs:
 1) Maximize EVA st Risk and CVaR constraints
 2) Maximize EVA st Risk constraint
 3) Maximize EVA st CVaR constraint
 4) Minimize Tracking Error
-5) Minimize CVaR
-5) Minimize CVaR st active return constraint
-1) Maximize Information Ratio
+5) Minimize Tracking Error st active return constraint
+6) Minimize CVaR
+7) Minimize CVaR st active return constraint
+8) Maximize Information Ratio
 
 Notes:
     Most test start by setting a random seed at the start. This is because unless we supply a initial vector, the

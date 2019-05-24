@@ -43,6 +43,7 @@ class ASROptimizer(BaseOptimizer):
 
         args
             other arguments to pass to the :class:`BaseOptimizer`
+
         kwargs
             other keyword arguments to pass into :class:`OptData` (if you passed in a numpy array for `data`) or into
             the :class:`BaseOptimizer`
