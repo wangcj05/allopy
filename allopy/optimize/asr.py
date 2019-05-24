@@ -9,7 +9,6 @@ from .opt_data import OptData
 
 __all__ = ['ASROptimizer']
 
-EPSILON = np.finfo('float').eps ** (1 / 3)
 OptArray = Optional[Array]
 Real = Union[int, float]  # a real number
 OptReal = Optional[Real]
@@ -18,7 +17,7 @@ OptReal = Optional[Real]
 class ASROptimizer(BaseOptimizer):
     def __init__(self, data: Union[np.ndarray, OptData], algorithm=LD_SLSQP,
                  cvar_data: Optional[Union[np.ndarray, OptData]] = None, rebalance=False,
-                 eps: float = EPSILON, *args, **kwargs):
+                 eps: float = np.finfo('float').eps ** (1 / 3), *args, **kwargs):
         """
         The ASROptimizer houses several common pre-specified optimization regimes
 
@@ -32,7 +31,9 @@ class ASROptimizer(BaseOptimizer):
 
         cvar_data: {ndarray, OptData}
             The cvar_data data used as constraint during the optimization. If this is not set, will default to being a
-            copy of the original data. Usually, this is a 3 year :class:`OptData`.
+            copy of the original data that is trimmed to the first 3 years. If an array like object is passed in,
+            the data must be a 3D array with axis representing time, trials and assets respectively. In that
+            instance, the horizon will not be cut at 3 years, rather it'll be left to the user.
 
         rebalance: bool, optional
             Whether the weights are rebalanced in every time instance. Defaults to False
@@ -51,16 +52,19 @@ class ASROptimizer(BaseOptimizer):
         :class:`BaseOptimizer`: Base Optimizer
         :class:`OptData`: Optimizer data wrapper
         """
-
-        cov_mat = kwargs.get('cov_mat', None)
-        time_unit = kwargs.get('period_year_length', 4)
+        time_unit = kwargs.get('time_unit', 4)
         if not isinstance(data, OptData):
             data = OptData(data, time_unit)
 
         if cvar_data is None:
-            cvar_data = data.copy()
-        elif not isinstance(cvar_data, OptData):
+            cvar_data = data.copy().cut_by_horizon(3)
+        elif isinstance(cvar_data, (np.ndarray, list, tuple)):
+            cvar_data = np.asarray(cvar_data)
+            assert cvar_data.ndim == 3, "Must pass in a 3D array for cvar data"
             cvar_data = OptData(cvar_data, time_unit)
+
+        assert isinstance(data, OptData), "data must be an OptData instance"
+        assert isinstance(cvar_data, OptData), "cvar_data must be an OptData instance"
 
         super().__init__(data.n_assets, algorithm, eps, *args, **kwargs)
         self.data = data
@@ -71,17 +75,27 @@ class ASROptimizer(BaseOptimizer):
     @property
     def AP(self):
         """
-        Active objectives. Active is used when the returns stream of the simulation is the over (under) performance of
+        Active objectives.
+
+        Active is used when the returns stream of the simulation is the over (under) performance of
         the particular asset class over the benchmark. (The first index in the assets axis)
 
-        For example, if you have a benchmark (beta) returns stream, 9 other asset classes over 10000 trials and 40 periods,
-        the simulation tensor will be 40 x 10000 x 10 with the first asset axis being the returns of the benchmark. In
-        such a case, the active portfolio optimizer can be used to optimize the portfolio relative to the benchmark.
+        For example, if you have a benchmark (beta) returns stream, 9 other asset classes over
+        10000 trials and 40 periods, the simulation tensor will be 40 x 10000 x 10 with the first asset
+        axis being the returns of the benchmark. In such a case, the active portfolio optimizer can
+        be used to optimize the portfolio relative to the benchmark.
         """
         return APObjectives(self)
 
     @property
     def PP(self):
+        """
+        Policy objectives.
+
+        Policy is used on the basic asset classes within GIC. For this optimizer, there is an
+        equality constraint set such that the sum of the weights must be equal to 1. Thus, there is
+        not need to set the equality constraint yourself.
+        """
         return PPObjectives(self)
 
     def adjust_returns(self, eva: Optional[Iterable[float]] = None, vol: Optional[Iterable[float]] = None):
