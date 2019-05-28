@@ -591,34 +591,55 @@ def calibrate_data(data: np.ndarray, mean: Optional[Iterable[float]] = None, sd:
         An instance of the adjusted numpy tensor
     """
     data = data.copy()
-    s = data.shape
+    y, n, num_assets = data.shape
+    y //= time_unit
 
-    if sd is None:
-        y = s[0] // time_unit
-        target_vols = ((data.reshape((y, time_unit, *s[1:])) + 1).prod(1) - 1).std(1).mean(0)
-    else:
-        target_vols = np.asarray(sd)
+    def set_target(target_values: Optional[Iterable[float]], typ: str, default: np.ndarray):
+        if target_values is None:
+            return default, [0 if typ == 'mean' else 1] * num_assets
 
-    if mean is None:
-        target_means = ((data + 1).prod(0) ** (time_unit / s[0])).mean(0) - 1
-    else:
-        target_means = np.asarray(mean)
+        best_guess = []
+        target_values = np.asarray(target_values)
+        assert num_assets == len(target_values) == len(
+            default), "vector length must be equal to number of assets in data cube"
+        for i, v in enumerate(target_values):
+            if v is None:
+                target_values[i] = default[i]
+                best_guess.append(0 if typ == 'mean' else 1)
+            else:
+                best_guess.append(target_values[i] - default[i] if typ == 'mean' else default[i] / target_values[i])
+        return target_values, best_guess
 
-    assert len(target_vols) == len(target_means)
-    num_assets = len(target_means)
+    d = (data + 1).prod(0)
+    default_mean = (np.sign(d) * np.abs(d) ** (1 / y)).mean(0) - 1
+    default_vol = ((data + 1).reshape(y, time_unit, n, num_assets).prod(1) - 1).std(1).mean(0)
+
+    target_means, guess_mean = set_target(mean, 'mean', default_mean)
+    target_vols, guess_vol = set_target(sd, 'vol', default_vol)
 
     sol = np.asarray([opt.root(
         fun=_asset_moments,
-        x0=np.random.uniform(0, 0.02, 2),
+        x0=[gv, gm],
         args=(data[..., i], tv, tm, time_unit)
-    ).x for i, tv, tm in zip(range(num_assets), target_vols, target_means)])
+    ).x for i, tv, tm, gv, gm in zip(range(num_assets), target_vols, target_means, guess_vol, guess_mean)])
 
     for i in range(num_assets):
         if sol[i, 0] < 0:
-            warnings.warn(f'negative vol adjustment at index {i}. This is a cause of concern as a negative vol '
-                          f'multiplier will alter the correlation structure')
+            # negative vol adjustments would alter the correlation between asset classes (flip signs)
+            # in such instances, we fall back to using the a simple affine transform where
+            # R' = (tv/cv) * r  # adjust vol first
+            # R' = (tm - mean(R'))  # adjust mean
 
-        data[..., i] = data[..., i] * sol[i, 0] + sol[i, 1]
+            # adjust vol
+            tv = default_vol[i]
+            cv = sd[i] if sd[i] is not None else tv
+            data[..., i] *= tv / cv  # tv / cv
+
+            # adjust mean
+            tm, cm = target_means[i], data[..., i].mean()
+            data[..., i] += (tm - cm)  # (tm - mean(R'))
+        else:
+            data[..., i] = data[..., i] * sol[i, 0] + sol[i, 1]
 
     return data
 
@@ -719,8 +740,11 @@ def _asset_moments(x: np.ndarray, asset: np.ndarray, t_vol: float, t_mean: float
     y = t // time_unit
 
     calibrated = asset * x[0] + x[1]
-    vol = ((calibrated.reshape((y, time_unit, n)) + 1).prod(1) - 1).std(1).mean(0) - t_vol
-    mean = ((calibrated + 1).prod(0) ** (1 / y)).mean() - t_mean - 1
+
+    d = (calibrated + 1).prod(0)
+    mean = (np.sign(d) * np.abs(d) ** (1 / y)).mean() - t_mean - 1
+    vol = ((calibrated + 1).reshape(y, time_unit, n).prod(1) - 1).std(1).mean(0) - t_vol
+
     return vol, mean
 
 
