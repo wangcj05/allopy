@@ -1,3 +1,4 @@
+from allopy.optimize import ASROptimizer, BaseOptimizer, OptData
 from ._version import get_versions
 
 v = get_versions()
