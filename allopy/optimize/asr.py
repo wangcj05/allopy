@@ -170,7 +170,7 @@ class APObjectives:
             opt.add_inequality_constraint(tracking_error_ctr(opt.data, max_te), tol)
 
         if max_cvar is not None:
-            opt.add_inequality_constraint(cvar_ctr(opt.data, max_cvar, opt.rebalance), tol)
+            opt.add_inequality_constraint(cvar_ctr(opt.cvar_data, max_cvar, opt.rebalance), tol)
 
         opt.set_max_objective(expected_returns_obj(opt.data, opt.rebalance))
         return opt.optimize(x0)
@@ -341,7 +341,7 @@ class PPObjectives:
             opt.add_inequality_constraint(vol_ctr(opt.data, max_vol), tol)
 
         if max_cvar is not None:
-            opt.add_inequality_constraint(cvar_ctr(opt.data, max_cvar, opt.rebalance), tol)
+            opt.add_inequality_constraint(cvar_ctr(opt.cvar_data, max_cvar, opt.rebalance), tol)
 
         opt.set_max_objective(expected_returns_obj(opt.data, opt.rebalance))
         return opt.optimize(self._initial_weights(x0))

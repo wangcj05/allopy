@@ -46,7 +46,7 @@ class OptData(np.ndarray):
 
         # empirical covariance taken along the time-asset axis then averaged by trials
         # annualized data
-        a = (data.reshape((periods // self.time_unit, self.time_unit, trials, n_assets)) + 1).prod(1) - 1
+        a = (data + 1).reshape(periods // self.time_unit, self.time_unit, trials, n_assets).prod(1) - 1
         cov_mat = np.mean([np.cov(a[i].T) for i in range(periods // self.time_unit)], 0)
         cov_mat = near_psd(cov_mat)
         assert is_psd(cov_mat), "covariance matrix must be positive semi-definite"
