@@ -63,6 +63,7 @@ class BaseOptimizer:
         self._heq: ConstraintMap = {}
         self._result: Result = None
         self._max_or_min = None
+        self._verbose = kwargs.get('verbose', False)
 
     @property
     def lower_bounds(self):
@@ -122,7 +123,8 @@ class BaseOptimizer:
 
     def _get_gradient_func(self, fn: Callable):
         if self._auto_grad and len(inspect.signature(fn).parameters) == 1:
-            print(f"Setting gradient for function: '{fn.__name__}'")
+            if self._verbose:
+                print(f"Setting gradient for function: '{fn.__name__}'")
             return _create_gradient_func(fn, self._eps)
         else:
             return fn
