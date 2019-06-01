@@ -1,5 +1,6 @@
 from typing import Iterable, Optional, Union
-import scipy.optimize as so
+
+import nlopt as nl
 import numpy as np
 from copulae.types import Array
 
@@ -16,9 +17,15 @@ OptReal = Optional[Real]
 
 
 class ASROptimizer(BaseOptimizer):
-    def __init__(self, data: Union[np.ndarray, OptData], algorithm=LD_SLSQP,
-                 cvar_data: Optional[Union[np.ndarray, OptData]] = None, rebalance=False,
-                 eps: float = np.finfo('float').eps ** (1 / 3), *args, **kwargs):
+    def __init__(self,
+                 data: Union[np.ndarray, OptData],
+                 algorithm=LD_SLSQP,
+                 cvar_data: Optional[Union[np.ndarray, OptData]] = None,
+                 rebalance=False,
+                 eps: float = np.finfo('float').eps ** (1 / 3),
+                 time_unit: int = 'quarterly',
+                 *args,
+                 **kwargs):
         """
         The ASROptimizer houses several common pre-specified optimization regimes
 
@@ -42,10 +49,15 @@ class ASROptimizer(BaseOptimizer):
         eps: float
             The tolerance for the optimizer.
 
-        args
+        time_unit: {int, 'monthly', 'quarterly', 'semi-annually', 'yearly'}, optional
+            Specifies how many units (first axis) is required to represent a year. For example, if each time period
+            represents a month, set this to 12. If quarterly, set to 4. Defaults to 12 which means 1 period represents
+            a month. Alternatively, specify one of 'monthly', 'quarterly', 'semi-annually' or 'yearly'
+
+        args:
             other arguments to pass to the :class:`BaseOptimizer`
 
-        kwargs
+        kwargs:
             other keyword arguments to pass into :class:`OptData` (if you passed in a numpy array for `data`) or into
             the :class:`BaseOptimizer`
 
@@ -72,6 +84,9 @@ class ASROptimizer(BaseOptimizer):
         self.cvar_data = cvar_data
 
         self._rebalance = rebalance
+
+        self._max_attempts = 0
+        self.max_attempts = kwargs.get('max_attempts', 100)
 
     @property
     def AP(self):
@@ -106,6 +121,15 @@ class ASROptimizer(BaseOptimizer):
     def adjust_cvar_returns(self, eva: Optional[Iterable[float]] = None, vol: Optional[Iterable[float]] = None):
         self.cvar_data = self.cvar_data.calibrate_data(eva, vol)
         return self
+
+    @property
+    def max_attempts(self):
+        return self._max_attempts
+
+    @max_attempts.setter
+    def max_attempts(self, value: int):
+        assert isinstance(value, int) and value > 0, 'max_attempts must be an integer >= 1'
+        self._max_attempts = value
 
     @property
     def rebalance(self):
@@ -291,17 +315,21 @@ class PPObjectives:
         self.asr = asr
         self.asr.add_equality_constraint(lambda w: sum(w) - 1, 1e-6)
 
-    def _initial_weights(self, x0):
-        """Smart guess for initial feasible solution"""
-        assert sum(self.asr.upper_bounds) >= 1, "Sum of upper bounds must be >= 1. Else there is no feasible solution"
+    def _optimize(self, x0):
+        opt = self.asr
 
-        if x0 is None:
-            x0 = so.minimize(lambda x: sum(x),
-                             np.random.uniform(self.asr.lower_bounds, self.asr.upper_bounds),
-                             constraints=[{'type': 'eq', 'fun': lambda x: sum(x) - 1}],
-                             bounds=so.Bounds(self.asr.lower_bounds, self.asr.upper_bounds)).x
+        for _ in range(self.asr.max_attempts):
+            try:
+                w = opt.optimize(x0)
+                if w is not None:
+                    return w
 
-        return x0
+            except nl.RoundoffLimited:
+                pass
+        else:
+            if self.asr._verbose:
+                print('No solution was found for the given problem. Check the summary() for more information')
+            return np.repeat(np.nan, self.asr.data.n_assets)
 
     def maximize_returns(self, max_vol: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None,
                          tol=0.0) -> np.ndarray:
