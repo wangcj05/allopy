@@ -5,6 +5,7 @@ from copulae.types import Array
 
 from .algorithms import LD_SLSQP
 from .base import BaseOptimizer
+from .obj_ctr import *
 from .opt_data import OptData
 
 __all__ = ['ASROptimizer']
@@ -53,7 +54,6 @@ class ASROptimizer(BaseOptimizer):
         :class:`BaseOptimizer`: Base Optimizer
         :class:`OptData`: Optimizer data wrapper
         """
-        time_unit = kwargs.get('time_unit', 4)
         if not isinstance(data, OptData):
             data = OptData(data, time_unit)
 
@@ -344,7 +344,7 @@ class PPObjectives:
             opt.add_inequality_constraint(cvar_ctr(opt.cvar_data, max_cvar, opt.rebalance), tol)
 
         opt.set_max_objective(expected_returns_obj(opt.data, opt.rebalance))
-        return opt.optimize(self._initial_weights(x0))
+        return self._optimize(x0)
 
     def minimize_volatility(self, min_ret: OptReal = None, x0: OptArray = None, tol=0.0) -> np.ndarray:
         """
@@ -375,7 +375,7 @@ class PPObjectives:
             opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, False, opt.rebalance), tol)
 
         opt.set_min_objective(vol_obj(opt.data))
-        return opt.optimize(self._initial_weights(x0))
+        return self._optimize(x0)
 
     def minimize_cvar(self, min_ret: OptReal = None, x0: OptArray = None, tol=0.0) -> np.ndarray:
         """
@@ -407,7 +407,7 @@ class PPObjectives:
             opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, False, opt.rebalance), tol)
 
         opt.set_min_objective(cvar_obj(opt.data, opt.rebalance))
-        return opt.optimize(self._initial_weights(x0))
+        return self._optimize(x0)
 
     def maximize_sharpe_ratio(self, x0: OptArray = None) -> np.ndarray:
         """
@@ -425,92 +425,4 @@ class PPObjectives:
         """
         opt = self.asr
         opt.set_max_objective(sharpe_ratio_obj(opt.data, opt.rebalance))
-        return opt.optimize(self._initial_weights(x0))
-
-
-def cvar_ctr(data: OptData, max_cvar: Real, rebalance=False):
-    """
-    Creates a cvar constraint function.
-
-    By default, the constraint function signature is :code:`CVaR(x) >= max_cvar` where `max_cvar`
-    is a negative number. Meaning if you would like to cap cvar at -40%, max_cvar should be set to -0.4.
-    """
-
-    def cvar(w):
-        return float(max_cvar) - data.cvar(w, rebalance)
-
-    return cvar
-
-
-def cvar_obj(data: OptData, rebalance=False):
-    # cvar works in negatives. So to reduce cvar, we have to "maximize" it
-
-    def cvar(w):
-        return -data.cvar(w, rebalance)
-
-    return cvar
-
-
-def expected_returns_ctr(data: OptData, min_ret: Real, use_active_return: bool, rebalance=False):
-    exp_ret = expected_returns_obj(data, rebalance)
-
-    def exp_ret_con(w):
-        _w = [0, *w[1:]] if use_active_return else w
-        # usually the constraint is >= min_ret, thus need to flip the sign
-        return float(min_ret) - exp_ret(w)
-
-    return exp_ret_con
-
-
-def expected_returns_obj(data: OptData, rebalance=False):
-    def exp_ret(w):
-        return data.expected_return(w, rebalance)
-
-    return exp_ret
-
-
-def info_ratio_obj(data: OptData, rebalance=False):
-    def info_ratio(w):
-        _w = [0, *w[1:]]
-        return data.sharpe_ratio(_w, rebalance)
-
-    return info_ratio
-
-
-def sharpe_ratio_obj(data: OptData, rebalance=True):
-    def sharpe_ratio(w):
-        return data.sharpe_ratio(w, rebalance)
-
-    return sharpe_ratio
-
-
-def tracking_error_ctr(data: OptData, max_te: Real):
-    te_obj = tracking_error_obj(data)
-
-    def te(w):
-        return te_obj(w) - float(max_te)
-
-    return te
-
-
-def tracking_error_obj(data: OptData):
-    def te(w):
-        return data.volatility([0, *w[1:]])
-
-    return te
-
-
-def vol_ctr(data: OptData, max_vol: Real):
-    v = vol_obj(data)
-
-    def vol(w):
-        return v(w) - float(max_vol)
-
-    return vol
-
-
-def vol_obj(data: OptData):
-    def vol(w):
-        return data.volatility(w)
-
-    return vol
+        return self._optimize(x0)
