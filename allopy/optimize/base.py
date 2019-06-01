@@ -117,9 +117,13 @@ class BaseOptimizer:
             x0 = np.asarray(x0)
 
         sol = self._model.optimize(x0, *args)
-        self._result = Result(self._hin, self._heq, sol, self._eps)
-
-        return self._result.x
+        if sol is not None:
+            self._result = Result(self._hin, self._heq, sol, self._eps)
+            return self._result.x
+        else:
+            if self._verbose:
+                print('No solution was found for the given problem. Check the summary() for more information')
+            return np.repeat(np.nan, len(x0))
 
     def _get_gradient_func(self, fn: Callable):
         if self._auto_grad and len(inspect.signature(fn).parameters) == 1:
@@ -480,22 +484,17 @@ class Result:
         self.violations = []
 
         for name, f in hin.items():
-            value = f(sol)
-            if -eps <= value <= eps:
+            value = abs(f(sol))
+            if value <= eps:
                 self.tight_hin.append(name)
             elif value > eps:
                 self.violations.append(name)
 
         for name, f in heq.items():
-            value = f(sol)
-            if abs(value) > eps:
+            if abs(f(sol)) > eps:
                 self.violations.append(name)
 
-        if len(self.violations) == 0:
-            self.x = sol
-        else:
-            print('No solution was found for the given problem. Check the summary() for more information')
-            self.x = None
+        self.x = sol
 
 
 class Summary:
@@ -609,7 +608,7 @@ class Summary:
         # bounds
         rows.extend([
             divider(),
-            f'{"Lower Bounds":15s}{"Upper Bounds":15s}',
+            f'{"Lower Bounds":>15s}{"Upper Bounds":>15s}',
             *[f"{l:15.6f}{u:15.6f}" for l, u in zip(self.lb, self.ub)],
             new_lines(2)
         ])
@@ -623,7 +622,7 @@ class Summary:
                 *[f"{i + 1:3d}: {n}" for i, n in enumerate(self.violations)]
             ])
         else:
-            sln = ''.join(x for x in self.solution) if isinstance(self.solution, abc.Iterable) else self.solution
+            sln = ''.join(str(x) for x in self.solution) if isinstance(self.solution, abc.Iterable) else self.solution
             rows.extend([
                 'Program found a solution',
                 f"Solution: [{sln}]",
@@ -641,6 +640,9 @@ class Summary:
         return '\n'.join(rows)
 
     def __str__(self):
+        return self.as_text()
+
+    def __repr__(self):
         return self.as_text()
 
 
