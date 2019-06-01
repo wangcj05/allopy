@@ -2,6 +2,7 @@ from typing import Optional, Union
 
 from copulae.types import Array
 
+from allopy import get_option
 from .opt_data import OptData
 
 OptArray = Optional[Array]
@@ -10,8 +11,6 @@ OptReal = Optional[Real]
 
 __all__ = ['cvar_ctr', 'cvar_obj', 'expected_returns_ctr', 'expected_returns_obj', 'info_ratio_obj', 'sharpe_ratio_obj',
            'tracking_error_obj', 'tracking_error_ctr', 'vol_obj', 'vol_ctr']
-
-CONSTANT = 1e3
 
 
 def cvar_ctr(data: OptData, max_cvar: Real, rebalance=False):
@@ -32,7 +31,7 @@ def cvar_obj(data: OptData, rebalance=False):
     # cvar works in negatives. So to reduce cvar, we have to "maximize" it
 
     def cvar(w):
-        return -data.cvar(w, rebalance) * CONSTANT
+        return -data.cvar(w, rebalance) * get_option("F.SCALE")
 
     return cvar
 
@@ -43,14 +42,14 @@ def expected_returns_ctr(data: OptData, min_ret: Real, use_active_return: bool, 
     def exp_ret_con(w):
         _w = [0, *w[1:]] if use_active_return else w
         # usually the constraint is >= min_ret, thus need to flip the sign
-        return float(min_ret) * CONSTANT - exp_ret(w)
+        return float(min_ret) * get_option("F.SCALE") - exp_ret(w)
 
     return exp_ret_con
 
 
 def expected_returns_obj(data: OptData, rebalance=False):
     def exp_ret(w):
-        return data.expected_return(w, rebalance) * CONSTANT
+        return data.expected_return(w, rebalance) * get_option("F.SCALE")
 
     return exp_ret
 
@@ -58,14 +57,14 @@ def expected_returns_obj(data: OptData, rebalance=False):
 def info_ratio_obj(data: OptData, rebalance=False):
     def info_ratio(w):
         _w = [0, *w[1:]]
-        return data.sharpe_ratio(_w, rebalance) * CONSTANT
+        return data.sharpe_ratio(_w, rebalance) * get_option("F.SCALE")
 
     return info_ratio
 
 
 def sharpe_ratio_obj(data: OptData, rebalance=True):
     def sharpe_ratio(w):
-        return data.sharpe_ratio(w, rebalance) * CONSTANT
+        return data.sharpe_ratio(w, rebalance) * get_option("F.SCALE")
 
     return sharpe_ratio
 
@@ -74,14 +73,14 @@ def tracking_error_ctr(data: OptData, max_te: Real):
     te_obj = tracking_error_obj(data)
 
     def te(w):
-        return te_obj(w) - float(max_te) * CONSTANT
+        return te_obj(w) - float(max_te) * get_option("F.SCALE")
 
     return te
 
 
 def tracking_error_obj(data: OptData):
     def te(w):
-        return data.volatility([0, *w[1:]]) * CONSTANT
+        return data.volatility([0, *w[1:]]) * get_option("F.SCALE")
 
     return te
 
@@ -90,13 +89,13 @@ def vol_ctr(data: OptData, max_vol: Real):
     v = vol_obj(data)
 
     def vol(w):
-        return v(w) - float(max_vol) * CONSTANT
+        return v(w) - float(max_vol) * get_option("F.SCALE")
 
     return vol
 
 
 def vol_obj(data: OptData):
     def vol(w):
-        return data.volatility(w) * CONSTANT
+        return data.volatility(w) * get_option("F.SCALE")
 
     return vol

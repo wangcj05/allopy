@@ -8,6 +8,7 @@ import numpy as np
 import numpy.random as rng
 from copulae.types import Numeric
 
+from allopy import get_option
 from .algorithms import LD_SLSQP, _has_gradient, _map_algorithm
 
 __all__ = ['BaseOptimizer']
@@ -20,7 +21,7 @@ class BaseOptimizer:
     _Aeq: np.ndarray
     _beq: np.ndarray
 
-    def __init__(self, n: int, algorithm=LD_SLSQP, eps=np.finfo('float').eps ** (1 / 3), *args, **kwargs):
+    def __init__(self, n: int, algorithm=LD_SLSQP, *args, **kwargs):
         """
         The BaseOptimizer is the raw optimizer with minimal support. For advanced users, this class will provide
         the most flexibility. The default algorithm used is Sequential Least Squares Quadratic Programming.
@@ -32,9 +33,6 @@ class BaseOptimizer:
 
         algorithm: str
             the optimization algorithm
-
-        eps: float
-            the gradient step
 
         args:
             other arguments to setup the optimizer
@@ -53,15 +51,15 @@ class BaseOptimizer:
             raise NotImplementedError(f"Cannot use '{nl.algorithm_name(algorithm)}' as it is not compiled")
 
         self._auto_grad: bool = kwargs.get('auto_grad', has_grad)
-        self._eps = eps
-        self.set_xtol_abs(1e-5)
-        self.set_xtol_rel(1e-3)
-        self.set_maxeval(1000)
-        self.set_ftol_rel(0)
-        self.set_ftol_abs(0)
+        self._eps = get_option('EPS.STEP')
+        self._c_eps = get_option('EPS.CONSTRAINT')
+        self.set_xtol_abs(get_option('EPS.X_ABS'))
+        self.set_ftol_abs(get_option('EPS.FUNCTION'))
+        self.set_maxeval(get_option('MAX.EVAL'))
+
         self._hin: ConstraintMap = {}
         self._heq: ConstraintMap = {}
-        self._result: Result = None
+        self._result: Optional[Result] = None
         self._max_or_min = None
         self._verbose = kwargs.get('verbose', False)
 
@@ -181,7 +179,7 @@ class BaseOptimizer:
 
         return self
 
-    def add_inequality_constraint(self, fn: Callable, tol=0.0):
+    def add_inequality_constraint(self, fn: Callable, tol=None):
         """
         Adds the equality constraint function in standard form, A <= b. If the gradient of the constraint function is
         not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
@@ -192,15 +190,17 @@ class BaseOptimizer:
         fn: Callable
             Constraint function
 
-        tol: float
+        tol: float, optional
             A tolerance in judging feasibility for the purposes of stopping the optimization
         """
+        tol = self._c_eps if tol is None else tol
+
         f = self._get_gradient_func(fn)
         self._hin[fn.__name__] = fn
         self._model.add_inequality_constraint(f, tol)
         return self
 
-    def add_equality_constraint(self, fn: Callable, tol=0.0):
+    def add_equality_constraint(self, fn: Callable, tol=None):
         """
         Adds the equality constraint function in standard form, A = b. If the gradient of the constraint function
         is not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
@@ -211,15 +211,17 @@ class BaseOptimizer:
         fn: Callable
             Constraint function
 
-        tol: float
+        tol: float, optional
             A tolerance in judging feasibility for the purposes of stopping the optimization
         """
+        tol = self._c_eps if tol is None else tol
+
         f = self._get_gradient_func(fn)
         self._heq[fn.__name__] = fn
         self._model.add_equality_constraint(f, tol)
         return self
 
-    def add_inequality_matrix_constraint(self, A, b, tol=0.0):
+    def add_inequality_matrix_constraint(self, A, b, tol=None):
         r"""
         Sets inequality constraints in standard matrix form.
 
@@ -233,9 +235,11 @@ class BaseOptimizer:
         b: {scalar, ndarray}
             Inequality vector or scalar. If scalar, it will be propagated.
 
-        tol: float
+        tol: float, optional
             A tolerance in judging feasibility for the purposes of stopping the optimization
         """
+        tol = self._c_eps if tol is None else tol
+
         A, b = _validate_matrix_constraints(A, b)
 
         for i, row, _b in zip(range(len(b)), A, b):
@@ -246,7 +250,7 @@ class BaseOptimizer:
 
         return self
 
-    def add_equality_matrix_constraint(self, Aeq, beq, tol=0.0):
+    def add_equality_matrix_constraint(self, Aeq, beq, tol=None):
         r"""
         Sets equality constraints in standard matrix form.
 
@@ -260,9 +264,11 @@ class BaseOptimizer:
         beq: {scalar, ndarray}
             Equality vector or scalar. If scalar, it will be propagated
 
-        tol: float
+        tol: float, optional
             A tolerance in judging feasibility for the purposes of stopping the optimization
         """
+        tol = self._c_eps if tol is None else tol
+
         Aeq, beq = _validate_matrix_constraints(Aeq, beq)
 
         for i, row, _beq in zip(range(len(beq)), Aeq, beq):
@@ -349,17 +355,33 @@ class BaseOptimizer:
         self._model.set_upper_bounds(np.asarray(ub))
         return self
 
-    def set_epsilon(self, epsilon: float):
+    def set_epsilon(self, eps: float):
         """
         Sets the step difference used when calculating the gradient for derivative based optimization algorithms.
         This can ignored if you use a derivative free algorithm or if you specify your gradient specifically.
 
         Parameters
         ----------
-        epsilon: float
-            the gradient step
+        eps: float
+            The gradient step
         """
-        self._eps = epsilon
+        assert isinstance(eps, float), "Epsilon must be a float"
+
+        self._eps = eps
+        return self
+
+    def set_epsilon_constraint(self, eps: float):
+        """
+        Sets the tolerance for the constraint functions
+
+        Parameters
+        ----------
+        eps: float
+            Tolerance
+        """
+        assert isinstance(eps, float), "Epsilon must be a float"
+
+        self._c_eps = eps
         return self
 
     def set_xtol_abs(self, tol: Union[float, np.ndarray]):

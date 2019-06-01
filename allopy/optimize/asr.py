@@ -22,7 +22,6 @@ class ASROptimizer(BaseOptimizer):
                  algorithm=LD_SLSQP,
                  cvar_data: Optional[Union[np.ndarray, OptData]] = None,
                  rebalance=False,
-                 eps: float = np.finfo('float').eps ** (1 / 3),
                  time_unit: int = 'quarterly',
                  *args,
                  **kwargs):
@@ -45,9 +44,6 @@ class ASROptimizer(BaseOptimizer):
 
         rebalance: bool, optional
             Whether the weights are rebalanced in every time instance. Defaults to False
-
-        eps: float
-            The tolerance for the optimizer.
 
         time_unit: {int, 'monthly', 'quarterly', 'semi-annually', 'yearly'}, optional
             Specifies how many units (first axis) is required to represent a year. For example, if each time period
@@ -79,7 +75,7 @@ class ASROptimizer(BaseOptimizer):
         assert isinstance(data, OptData), "data must be an OptData instance"
         assert isinstance(cvar_data, OptData), "cvar_data must be an OptData instance"
 
-        super().__init__(data.n_assets, algorithm, eps, *args, **kwargs)
+        super().__init__(data.n_assets, algorithm, *args, **kwargs)
         self.data = data
         self.cvar_data = cvar_data
 
