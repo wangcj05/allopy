@@ -81,6 +81,7 @@ def performance_ratios_(data,
     >>> cov = np.asarray([pearson_rho(data[i]) for i in range(20)]).mean(0)
 
     >>> performance_ratios_(data, w, cov, rebalance=False, time_unit=4, cvar_data=cvar_data)
+    {'sharpe': -1.7938029628061283, 'sortino': -1.2571590380930682, 'trasr': 0.5682534097485071}
     """
     mean = _calculate_discounted_returns(data, w, rebalance, time_unit, ow, weights)
     std = (w @ cov @ w) ** 0.5
@@ -134,7 +135,7 @@ def performance_ratios(returns_metrics_, risk_metrics_):
     >>> returns_metrics_ = returns_metrics(data, w, cov, rebalance=False, time_unit=4)
     >>> risk_metrics_ = risk_metrics(data, w, rebalance=True, percentile=5, time_unit=4, cvar_data=cvar_data)
     >>> performance_ratios(returns_metrics_, risk_metrics_)
-
+    {'sharpe': -1.7938029628061283, 'sortino': -1.2571590380930682, 'trasr': 0.5682534097485071}
     """
     cvar = risk_metrics_['cvar']
     sstd = risk_metrics_['sstd']

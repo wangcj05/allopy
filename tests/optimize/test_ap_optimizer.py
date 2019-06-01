@@ -232,7 +232,8 @@ def test_min_te_st_active_ret(horizon, overweight):
 
     min_ret = 0.01
 
-    opt = ASROptimizer(data, rebalance=REBALANCE).set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
+    opt = ASROptimizer(data, rebalance=REBALANCE)
+    opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
     sol = opt.AP.minimize_tracking_error(min_ret, True)
 
     assert_equal_or_better_solution(tracking_error(data), sol, exp_wgt, f'{target} {_id}', bigger_better=False,

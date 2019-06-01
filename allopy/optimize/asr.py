@@ -152,6 +152,22 @@ class APObjectives:
     def __init__(self, asr: ASROptimizer):
         self.asr = asr
 
+    def _optimize(self, x0):
+        opt = self.asr
+
+        for _ in range(self.asr.max_attempts):
+            try:
+                w = opt.optimize(x0)
+                if w is not None:
+                    return w
+
+            except (nl.RoundoffLimited, RuntimeError):
+                x0 = np.random.uniform(opt.lower_bounds, opt.upper_bounds)
+        else:
+            if self.asr._verbose:
+                print('No solution was found for the given problem. Check the summary() for more information')
+            return np.repeat(np.nan, self.asr.data.n_assets)
+
     def maximize_eva(self, max_te: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None,
                      tol=0.0) -> np.ndarray:
         """
@@ -193,7 +209,7 @@ class APObjectives:
             opt.add_inequality_constraint(cvar_ctr(opt.cvar_data, max_cvar, opt.rebalance), tol)
 
         opt.set_max_objective(expected_returns_obj(opt.data, opt.rebalance))
-        return opt.optimize(x0)
+        return self._optimize(x0)
 
     def minimize_tracking_error(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None,
                                 tol=0.0) -> np.ndarray:
@@ -232,7 +248,7 @@ class APObjectives:
                                           tol)
 
         opt.set_min_objective(tracking_error_obj(opt.data))
-        return opt.optimize(x0)
+        return self._optimize(x0)
 
     def minimize_cvar(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None,
                       tol=0.0) -> np.ndarray:
@@ -272,7 +288,7 @@ class APObjectives:
                                           tol)
 
         opt.set_min_objective(cvar_obj(opt.data, opt.rebalance))
-        return opt.optimize(x0)
+        return self._optimize(x0)
 
     def maximize_info_ratio(self, x0: OptArray = None) -> np.ndarray:
         """
@@ -290,7 +306,7 @@ class APObjectives:
         """
         opt = self.asr
         opt.set_max_objective(info_ratio_obj(opt.data, opt.rebalance))
-        return opt.optimize(x0)
+        return self._optimize(x0)
 
 
 class PPObjectives:

@@ -5,8 +5,6 @@ Allopy is a package used for optimizing portfolios.
 
 ## TODO
 
-[ ] Write tests for:
-    [ ] allopy.optimize.functions
-    [ ] allopy.optimize.opt_data.PPObjectives
-[ ] Refactor
-    [ ] Analytics codes
+- Check issues with following tests
+    - [ ] test_min_te (Overweight: False, Horizon: 10) 
+    - [ ] test_min_te_st_active_ret (Overweight: True, Horizon: 10)
