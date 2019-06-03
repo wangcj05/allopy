@@ -4,6 +4,7 @@ include README.md
 include setup.py
 include *.rst
 
+recursive-include allopy/datasets/data *.csv
 global-exclude *.py[co]
 global-exclude *.p
 
