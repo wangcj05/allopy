@@ -1,5 +1,12 @@
 OUTPUT_DIR := dist
 
+
+clean:
+	rm -rf allopy.egg-info build dist htmlcov .coverage
+
 test:
-# Assume a 4 core computer to run the tests
 	python -m pytest tests/
+
+
+wheel:
+	python setup.py bdist_wheel
