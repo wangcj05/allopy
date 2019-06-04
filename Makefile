@@ -1,8 +1,11 @@
 OUTPUT_DIR := dist
 
+conda:
+	conda build --output-folder $(OUTPUT_DIR) conda.recipe
+
 
 clean:
-	rm -rf allopy.egg-info build dist htmlcov .coverage
+	rm -rf allopy.egg-info build dist/* htmlcov .coverage
 
 
 test:
