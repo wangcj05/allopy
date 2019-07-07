@@ -3,7 +3,7 @@ _global_config = {
     'EPS.FUNCTION': 1e-6,
     'EPS.X_ABS': 1e-6,
     'EPS.STEP': 5e-7,
-    'F.SCALE': 1e6,
+    'F.SCALE': 1e3,
     'MAX.EVAL': 100000,
 }
 

@@ -203,12 +203,12 @@ class APObjectives:
                                                           "constraint, we must at least specify max CVaR or max TE"
 
         if max_te is not None:
-            opt.add_inequality_constraint(tracking_error_ctr(opt.data, max_te), tol)
+            opt.add_inequality_constraint(ctr_max_vol(opt.data, max_te), tol)
 
         if max_cvar is not None:
-            opt.add_inequality_constraint(cvar_ctr(opt.cvar_data, max_cvar, opt.rebalance), tol)
+            opt.add_inequality_constraint(ctr_max_cvar(opt.cvar_data, max_cvar, opt.rebalance))
 
-        opt.set_max_objective(expected_returns_obj(opt.data, opt.rebalance))
+        opt.set_max_objective(obj_max_returns(opt.data, opt.rebalance))
         return self._optimize(x0)
 
     def minimize_tracking_error(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None,
@@ -244,10 +244,9 @@ class APObjectives:
         opt = self.asr
 
         if min_ret is not None:
-            opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, use_active_return, opt.rebalance),
-                                          tol)
+            opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, use_active_return, opt.rebalance), tol)
 
-        opt.set_min_objective(tracking_error_obj(opt.data))
+        opt.set_min_objective(obj_min_vol(opt.data, as_tracking_error=True))
         return self._optimize(x0)
 
     def minimize_cvar(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None,
@@ -284,10 +283,9 @@ class APObjectives:
         opt = self.asr
 
         if min_ret is not None:
-            opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, use_active_return, opt.rebalance),
-                                          tol)
+            opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, use_active_return, opt.rebalance), tol)
 
-        opt.set_min_objective(cvar_obj(opt.data, opt.rebalance))
+        opt.set_max_objective(obj_max_cvar(opt.data, opt.rebalance))
         return self._optimize(x0)
 
     def maximize_info_ratio(self, x0: OptArray = None) -> np.ndarray:
@@ -305,7 +303,7 @@ class APObjectives:
             Optimal weights
         """
         opt = self.asr
-        opt.set_max_objective(info_ratio_obj(opt.data, opt.rebalance))
+        opt.set_max_objective(obj_max_sharpe_ratio(opt.data, opt.rebalance, as_info_ratio=True))
         return self._optimize(x0)
 
 
@@ -325,7 +323,7 @@ class PPObjectives:
 
     def __init__(self, asr: ASROptimizer):
         self.asr = asr
-        self.asr.add_equality_constraint(lambda w: sum(w) - 1, 1e-6)
+        self.asr.add_equality_constraint(sum_to_1)
 
     def _optimize(self, x0):
         opt = self.asr
@@ -378,12 +376,12 @@ class PPObjectives:
                                                            "constraint, we must at least specify max CVaR or max vol"
 
         if max_vol is not None:
-            opt.add_inequality_constraint(vol_ctr(opt.data, max_vol), tol)
+            opt.add_inequality_constraint(ctr_max_vol(opt.data, max_vol), tol)
 
         if max_cvar is not None:
-            opt.add_inequality_constraint(cvar_ctr(opt.cvar_data, max_cvar, opt.rebalance), tol)
+            opt.add_inequality_constraint(ctr_max_cvar(opt.cvar_data, max_cvar, opt.rebalance), tol)
 
-        opt.set_max_objective(expected_returns_obj(opt.data, opt.rebalance))
+        opt.set_max_objective(obj_max_returns(opt.data, opt.rebalance))
         return self._optimize(x0)
 
     def minimize_volatility(self, min_ret: OptReal = None, x0: OptArray = None, tol=0.0) -> np.ndarray:
@@ -412,9 +410,9 @@ class PPObjectives:
         opt = self.asr
 
         if min_ret is not None:
-            opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, False, opt.rebalance), tol)
+            opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, opt.rebalance), tol)
 
-        opt.set_min_objective(vol_obj(opt.data))
+        opt.set_min_objective(obj_min_vol(opt.data))
         return self._optimize(x0)
 
     def minimize_cvar(self, min_ret: OptReal = None, x0: OptArray = None, tol=0.0) -> np.ndarray:
@@ -444,9 +442,9 @@ class PPObjectives:
         opt = self.asr
 
         if min_ret is not None:
-            opt.add_inequality_constraint(expected_returns_ctr(opt.data, min_ret, False, opt.rebalance), tol)
+            opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, opt.rebalance), tol)
 
-        opt.set_min_objective(cvar_obj(opt.data, opt.rebalance))
+        opt.set_max_objective(obj_max_cvar(opt.data, opt.rebalance))
         return self._optimize(x0)
 
     def maximize_sharpe_ratio(self, x0: OptArray = None) -> np.ndarray:
@@ -464,5 +462,5 @@ class PPObjectives:
             Optimal weights
         """
         opt = self.asr
-        opt.set_max_objective(sharpe_ratio_obj(opt.data, opt.rebalance))
+        opt.set_max_objective(obj_max_sharpe_ratio(opt.data, opt.rebalance))
         return self._optimize(x0)
