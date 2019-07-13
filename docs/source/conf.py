@@ -17,6 +17,8 @@ import os
 import shutil
 import sys
 
+import allopy
+
 root = os.path.abspath('../..')
 sys.path.insert(0, root)
 
@@ -33,9 +35,9 @@ copyright = '2019, Daniel Bok'
 author = 'Daniel Bok'
 
 # The short X.Y version
-version = ''
+version = allopy.__version__
 # The full version, including alpha/beta/rc tags
-release = '0.0.0'
+release = allopy._version.get_versions()['version']
 
 # -- General configuration ---------------------------------------------------
 
