@@ -9,14 +9,14 @@ from .base import BaseOptimizer
 from .obj_ctr import *
 from .opt_data import OptData
 
-__all__ = ['ASROptimizer']
+__all__ = ['PortfolioOptimizer']
 
 OptArray = Optional[Array]
 Real = Union[int, float]  # a real number
 OptReal = Optional[Real]
 
 
-class ASROptimizer(BaseOptimizer):
+class PortfolioOptimizer(BaseOptimizer):
     def __init__(self,
                  data: Union[np.ndarray, OptData],
                  algorithm=LD_SLSQP,
@@ -26,7 +26,7 @@ class ASROptimizer(BaseOptimizer):
                  *args,
                  **kwargs):
         """
-        The ASROptimizer houses several common pre-specified optimization regimes
+        The PortfolioOptimizer houses several common pre-specified optimization regimes
 
         Parameters
         ----------
@@ -87,7 +87,7 @@ class ASROptimizer(BaseOptimizer):
     @property
     def AP(self):
         """
-        Active objectives.
+        Active Portfolio (AP) objectives.
 
         Active is used when the returns stream of the simulation is the over (under) performance of
         the particular asset class over the benchmark. (The first index in the assets axis)
@@ -102,11 +102,11 @@ class ASROptimizer(BaseOptimizer):
     @property
     def PP(self):
         """
-        Policy objectives.
+        Policy Portfolio (PP) objectives.
 
-        Policy is used on the basic asset classes within GIC. For this optimizer, there is an
-        equality constraint set such that the sum of the weights must be equal to 1. Thus, there is
-        not need to set the equality constraint yourself.
+        Policy is used on the basic asset classes. For this optimizer, there is an equality constraint set
+        such that the sum of the weights must be equal to 1. Thus, there is no need to set this equality
+        constraint.
         """
         return PPObjectives(self)
 
@@ -146,10 +146,10 @@ class APObjectives:
     the simulation tensor will be 40 x 10000 x 10 with the first asset axis being the returns of the benchmark. In
     such a case, the active portfolio optimizer can be used to optimize the portfolio relative to the benchmark.
 
-    This is a singleton class meant for easier optimization regime access for the ASROptimizer
+    This is a singleton class meant for easier optimization regime access for the PortfolioOptimizer
     """
 
-    def __init__(self, asr: ASROptimizer):
+    def __init__(self, asr: PortfolioOptimizer):
         self.asr = asr
 
     def _optimize(self, x0):
@@ -318,10 +318,10 @@ class PPObjectives:
     the simulation tensor will be 40 x 10000 x 10 with the first asset axis being the returns of the benchmark. In
     such a case, the active portfolio optimizer can be used to optimize the portfolio relative to the benchmark.
 
-    This is a singleton class meant for easier optimization regime access for the ASROptimizer
+    This is a singleton class meant for easier optimization regime access for the PortfolioOptimizer
     """
 
-    def __init__(self, asr: ASROptimizer):
+    def __init__(self, asr: PortfolioOptimizer):
         self.asr = asr
         self.asr.add_equality_constraint(sum_to_1)
 

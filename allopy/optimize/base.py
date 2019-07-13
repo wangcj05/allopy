@@ -577,7 +577,7 @@ class Summary:
 """
 
         return f"""
-<h1>GIC Portfolio Optimizer</h1>
+<h1>Portfolio Optimizer</h1>
 <h3>Algorithm: {self.alg}</h3>
 <hr/>
 <table>
@@ -613,7 +613,7 @@ class Summary:
 
         # names
         rows = [
-            f"{'GIC Portfolio Optimizer':^84s}",
+            f"{'Portfolio Optimizer':^84s}",
             divider('='),
             new_lines(),
             f'Algorithm: {self.alg}',

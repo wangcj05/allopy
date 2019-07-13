@@ -27,7 +27,7 @@ import numpy as np
 import pytest
 from copulae.core import corr2cov, near_psd
 
-from allopy.optimize import ASROptimizer, OptData
+from allopy.optimize import PortfolioOptimizer, OptData
 from tests.optimize.setup import get_exp_wgt, read_A, read_corr, read_meta_data, read_sim_ret
 
 decor_horizon = pytest.mark.parametrize('horizon', [5, 10])
@@ -146,7 +146,7 @@ def test_max_eva_st_te_cvar(horizon, overweight):
     _id, data, risk_data, A, b, lb, ub = get_opt_data(horizon, overweight)
     exp_wgt = get_exp_wgt(_id, target)
 
-    opt = ASROptimizer(data, cvar_data=risk_data, rebalance=REBALANCE)
+    opt = PortfolioOptimizer(data, cvar_data=risk_data, rebalance=REBALANCE)
     opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
 
     max_te = 0.03
@@ -170,7 +170,7 @@ def test_max_eva_st_te(horizon, overweight):
     _id, data, risk_data, A, b, lb, ub = get_opt_data(horizon, overweight)
     exp_wgt = get_exp_wgt(_id, target)
 
-    opt = ASROptimizer(data, cvar_data=risk_data, rebalance=REBALANCE)
+    opt = PortfolioOptimizer(data, cvar_data=risk_data, rebalance=REBALANCE)
     opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
 
     max_te = 0.03
@@ -192,7 +192,7 @@ def test_max_eva_st_cvar(horizon, overweight):
     _id, data, risk_data, A, b, lb, ub = get_opt_data(horizon, overweight)
     exp_wgt = get_exp_wgt(_id, target)
 
-    opt = ASROptimizer(data, cvar_data=risk_data, rebalance=REBALANCE)
+    opt = PortfolioOptimizer(data, cvar_data=risk_data, rebalance=REBALANCE)
     opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
 
     max_cvar = -0.4
@@ -214,7 +214,7 @@ def test_min_te(horizon, overweight):
     _id, data, _, A, b, lb, ub = get_opt_data(horizon, overweight)
     exp_wgt = get_exp_wgt(_id, target)
 
-    opt = ASROptimizer(data, rebalance=REBALANCE)
+    opt = PortfolioOptimizer(data, rebalance=REBALANCE)
     opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
     sol = opt.AP.minimize_tracking_error()
 
@@ -232,7 +232,7 @@ def test_min_te_st_active_ret(horizon, overweight):
 
     min_ret = 0.01
 
-    opt = ASROptimizer(data, rebalance=REBALANCE)
+    opt = PortfolioOptimizer(data, rebalance=REBALANCE)
     opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
     sol = opt.AP.minimize_tracking_error(min_ret, True)
 
@@ -253,7 +253,7 @@ def test_min_cvar(horizon, overweight):
 
     while True:
         try:
-            opt = ASROptimizer(data, rebalance=REBALANCE)
+            opt = PortfolioOptimizer(data, rebalance=REBALANCE)
             opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
             sol = opt.AP.minimize_cvar()
             break
@@ -276,7 +276,7 @@ def test_min_cvar_st_active_ret(horizon, overweight):
 
     while True:
         try:
-            opt = ASROptimizer(data, rebalance=REBALANCE)
+            opt = PortfolioOptimizer(data, rebalance=REBALANCE)
             opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
             sol = opt.AP.minimize_cvar(min_ret, True)
             break
@@ -298,7 +298,7 @@ def test_max_information_ratio(horizon, overweight):
     _id, data, _, A, b, lb, ub = get_opt_data(horizon, overweight)
     exp_wgt = get_exp_wgt(_id, target)
 
-    opt = ASROptimizer(data, rebalance=REBALANCE)
+    opt = PortfolioOptimizer(data, rebalance=REBALANCE)
     opt.set_bounds(lb, ub).add_inequality_matrix_constraint(A, b)
     sol = opt.AP.maximize_info_ratio()
 
