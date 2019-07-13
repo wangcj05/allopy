@@ -8,11 +8,12 @@ VERSION = versioneer.get_version().split('+')[0]
 cmdclass = versioneer.get_cmdclass()
 
 install_requires = [
-    'copulae >=0.3',
+    'copulae >=0.4',
+    'muarch',
     'numpy',
     'nlopt >=2.6',
-    'scipy >=1.1',
-    'pandas >=0.23'
+    'scipy',
+    'pandas'
 ]
 
 setup(

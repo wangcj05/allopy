@@ -2,13 +2,11 @@ import warnings
 from typing import Iterable, Optional, Union
 
 import numpy as np
-import scipy.optimize as opt
 from copulae.core import is_psd, near_psd
 from copulae.types import Array
+from muarch.calibrate import calibrate_data
 
-from allopy.analytics.utils import annualize_returns, coalesce_covariance_matrix
-
-__all__ = ['OptData', 'calibrate_data', 'alter_frequency']
+__all__ = ['OptData', 'alter_frequency', 'calibrate_data', 'coalesce_covariance_matrix']
 
 
 # noinspection PyMissingConstructor
@@ -58,7 +56,7 @@ class OptData(np.ndarray):
         self.n_assets = n_assets
 
         # minor optimization when using rebalanced optimization. This is essentially a cache
-        self._unrebalanced_returns_data: np.ndarray = None
+        self._unrebalanced_returns_data: Optional[np.ndarray] = None
         self._cov_mat = cov_mat
 
     def __array_finalize__(self, obj):
@@ -313,7 +311,7 @@ class OptData(np.ndarray):
         w = _format_weights(w, self)
         returns = self.portfolio_returns(w, rebalance) + 1
 
-        return np.mean(annualize_returns(returns, self.n_years))
+        return (np.sign(returns) * np.abs(returns) ** (1 / self.n_years)).mean() - 1
 
     def sharpe_ratio(self, w: Array, rebalance: bool) -> float:
         r"""
@@ -564,86 +562,6 @@ class OptData(np.ndarray):
         super(OptData, self).__setstate__(state[:-1], *args, **kwargs)
 
 
-def calibrate_data(data: np.ndarray, mean: Optional[Iterable[float]] = None, sd: Optional[Iterable[float]] = None,
-                   time_unit=12):
-    """
-    Calibrates the data given the target mean and standard deviation.
-
-    Parameters
-    ----------
-    data: ndarray
-        Data tensor to calibrate
-
-    mean: iterable float, optional
-        The targeted mean vector
-
-    sd: iterable float, optional
-        The targeted float vector
-
-    time_unit: int, optional
-        Specifies how many units (first axis) is required to represent a year. For example, if each time period
-        represents a month, set this to 12. If quarterly, set to 4. Defaults to 12 which means 1 period represents
-        a month
-
-    Returns
-    -------
-    ndarray
-        An instance of the adjusted numpy tensor
-    """
-    data = data.copy()
-    y, n, num_assets = data.shape
-    y //= time_unit
-
-    def set_target(target_values: Optional[Iterable[float]], typ: str, default: np.ndarray):
-        if target_values is None:
-            return default, [0 if typ == 'mean' else 1] * num_assets
-
-        best_guess = []
-        target_values = np.asarray(target_values)
-        assert num_assets == len(target_values) == len(
-            default), "vector length must be equal to number of assets in data cube"
-        for i, v in enumerate(target_values):
-            if v is None:
-                target_values[i] = default[i]
-                best_guess.append(0 if typ == 'mean' else 1)
-            else:
-                best_guess.append(target_values[i] - default[i] if typ == 'mean' else default[i] / target_values[i])
-        return target_values, best_guess
-
-    d = (data + 1).prod(0)
-    default_mean = (np.sign(d) * np.abs(d) ** (1 / y)).mean(0) - 1
-    default_vol = ((data + 1).reshape(y, time_unit, n, num_assets).prod(1) - 1).std(1).mean(0)
-
-    target_means, guess_mean = set_target(mean, 'mean', default_mean)
-    target_vols, guess_vol = set_target(sd, 'vol', default_vol)
-
-    sol = np.asarray([opt.root(
-        fun=_asset_moments,
-        x0=[gv, gm],
-        args=(data[..., i], tv, tm, time_unit)
-    ).x for i, tv, tm, gv, gm in zip(range(num_assets), target_vols, target_means, guess_vol, guess_mean)])
-
-    for i in range(num_assets):
-        if sol[i, 0] < 0:
-            # negative vol adjustments would alter the correlation between asset classes (flip signs)
-            # in such instances, we fall back to using the a simple affine transform where
-            # R' = (tv/cv) * r  # adjust vol first
-            # R' = (tm - mean(R'))  # adjust mean
-
-            # adjust vol
-            tv = default_vol[i]
-            cv = sd[i] if sd[i] is not None else tv
-            data[..., i] *= tv / cv  # tv / cv
-
-            # adjust mean
-            tm, cm = target_means[i], data[..., i].mean()
-            data[..., i] += (tm - cm)  # (tm - mean(R'))
-        else:
-            data[..., i] = data[..., i] * sol[i, 0] + sol[i, 1]
-
-    return data
-
-
 def alter_frequency(data, from_='month', to_='quarter'):
     """
     Coalesces a the 3D tensor to a lower frequency.
@@ -707,45 +625,65 @@ def alter_frequency(data, from_='month', to_='quarter'):
     return (data.reshape((new_t, t // new_t, n, s)) + 1).prod(1) - 1  # reshape data
 
 
-def _asset_moments(x: np.ndarray, asset: np.ndarray, t_vol: float, t_mean: float, time_unit: int):
+def coalesce_covariance_matrix(cov,
+                               w: Iterable[float],
+                               indices: Optional[Iterable[int]] = None) -> Union[np.ndarray, float]:
     """
-    Calculates the first 2 asset moments after an adjustment
-
+    Aggregates the covariance with the weights given at the indices specified
+    The aggregated column will be the first column.
     Parameters
     ----------
-    x: ndarray
-        Adjustment quantity
-
-    asset: ndarray
-        Initial asset tensor
-
-    t_vol: float
-        Target volatility
-
-    t_mean: float
-        Target returns
-
-    time_unit: int
-        Specifies how many units (first axis) is required to represent a year. For example, if each time period
-        represents a month, set this to 12. If quarterly, set to 4. Defaults to 12 which means 1 period represents
-        a month
-
+    cov: ndarray
+        Covariance matrix of the portfolio
+    w: ndarray
+        The weights to aggregate the columns by. Weights do not have to sum to 1, if it needs to, you should check
+        it prior
+    indices: iterable int, optional
+        The column index of the aggregated data. If not specified, method will aggregate the first 'n' columns
+        where 'n' is the length of :code:`w`
     Returns
     -------
-    (float, float)
-        Volatility and mean
+    ndarray
+        Aggregated covariance matrix
+    Examples
+    --------
+    If we have a (60 x 1000 x 10) data and we want to aggregate the assets the first 3 indexes,
+    >>> from allopy.optimize.opt_data import coalesce_covariance_matrix
+    >>> import numpy as np
+    form covariance matrix
+    >>> np.random.seed(8888)
+    >>> cov = np.random.standard_normal((5, 5))
+    >>> cov = cov @ cov.T
+    coalesce first and second column where contribution is (30%, 70%) respectively.
+    Does not have to sum to 1
+    >>> coalesce_covariance_matrix(cov, (0.3, 0.7))
+    coalesce fourth and fifth column
+    >>> coalesce_covariance_matrix(cov, (0.2, 0.4), (3, 4))
     """
+    w = np.asarray(w)
+    cov = np.asarray(cov)
+    n = len(w)
 
-    t, n = asset.shape  # time step (month), trials
-    y = t // time_unit
+    assert cov.ndim == 2 and cov.shape[0] == cov.shape[1], 'cov must be a square matrix'
+    assert n <= len(cov), 'adjustment weights cannot be larger than the covariance matrix'
 
-    calibrated = asset * x[0] + x[1]
+    if indices is None:
+        indices = np.arange(n)
 
-    d = (calibrated + 1).prod(0)
-    mean = (np.sign(d) * np.abs(d) ** (1 / y)).mean() - t_mean - 1
-    vol = ((calibrated + 1).reshape(y, time_unit, n).prod(1) - 1).std(1).mean(0) - t_vol
+    _, a = cov.shape  # get number of assets originally
 
-    return vol, mean
+    # form transform matrix
+    T = np.zeros((a - n + 1, a))
+    T[0, :n] = w
+    T[1:, n:] = np.eye(a - n)
+
+    # re-order covariance matrix
+    rev_indices = sorted(set(range(a)) - set(indices))  # these are the indices that are not aggregated
+    indices = [*indices, *rev_indices]
+    cov = cov[indices][:, indices]  # reorder the covariance matrix, first by rows then by columns
+
+    cov = T @ cov @ T.T
+    return float(cov) if cov.size == 1 else near_psd(cov)
 
 
 def _format_weights(w, data: OptData) -> np.ndarray:
