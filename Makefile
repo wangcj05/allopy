@@ -5,7 +5,9 @@ conda:
 
 
 clean:
-	rm -rf allopy.egg-info build dist/* htmlcov .coverage
+	rm -rf allopy.egg-info build dist/* htmlcov
+	find . -name .coverage -type f -exec rm {} +
+	find . -name .ipynb_checkpoints -type d -exec rm -rf {} +
 
 
 test:
