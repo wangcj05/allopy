@@ -73,7 +73,7 @@ def set_option(key, value):
 
     F.SCALE
         Numeric scale applied to function objective and constraint values to increase
-        stability. Only applicable for ASROptimizer.
+        stability. Only applicable for PortfolioOptimizer.
 
     MAX.EVAL
         The maximum number of evaluations before the optimizer terminates

@@ -7,7 +7,7 @@ The optimizers are the classes responsible for finding the ideal weights. The un
     :caption: Allopy Optimizer API
 
     Base Optimizer <base>
-    ASR Optimizer <asr>
+    Portfolio Optimizer <portfolio>
 
 
 Algorithms
