@@ -137,7 +137,28 @@ class PortfolioOptimizer(BaseOptimizer):
         self._rebalance = rebal
 
 
-class APObjectives:
+class _Objectives:
+    def __init__(self, optimizer: PortfolioOptimizer):
+        self.opt = optimizer
+
+    def _optimize(self, x0):
+        opt = self.opt
+
+        for _ in range(opt.max_attempts):
+            try:
+                w = opt.optimize(x0)
+                if w is not None:
+                    return w
+
+            except (nl.RoundoffLimited, RuntimeError):
+                x0 = np.random.uniform(opt.lower_bounds, opt.upper_bounds)
+        else:
+            if opt._verbose:
+                print('No solution was found for the given problem. Check the summary() for more information')
+            return np.repeat(np.nan, opt.data.n_assets)
+
+
+class APObjectives(_Objectives):
     """
     Active objectives. Active is used when the returns stream of the simulation is the over (under) performance of
     the particular asset class over the benchmark. (The first index in the assets axis)
@@ -149,24 +170,8 @@ class APObjectives:
     This is a singleton class meant for easier optimization regime access for the PortfolioOptimizer
     """
 
-    def __init__(self, asr: PortfolioOptimizer):
-        self.asr = asr
-
-    def _optimize(self, x0):
-        opt = self.asr
-
-        for _ in range(self.asr.max_attempts):
-            try:
-                w = opt.optimize(x0)
-                if w is not None:
-                    return w
-
-            except (nl.RoundoffLimited, RuntimeError):
-                x0 = np.random.uniform(opt.lower_bounds, opt.upper_bounds)
-        else:
-            if self.asr._verbose:
-                print('No solution was found for the given problem. Check the summary() for more information')
-            return np.repeat(np.nan, self.asr.data.n_assets)
+    def __init__(self, optimizer: PortfolioOptimizer):
+        super().__init__(optimizer)
 
     def maximize_eva(self, max_te: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None,
                      tol=0.0) -> np.ndarray:
@@ -197,18 +202,18 @@ class APObjectives:
         ndarray
             Optimal weights
         """
-        opt = self.asr
+        opt = self.opt
 
         assert not (max_te is None and max_cvar is None), "If maximizing EVA subject to some sort of TE/CVaR " \
                                                           "constraint, we must at least specify max CVaR or max TE"
 
         if max_te is not None:
-            opt.add_inequality_constraint(ctr_max_vol(opt.data, max_te), tol)
+            opt.add_inequality_constraint(ctr_max_vol(opt.data, max_te, True), tol)
 
         if max_cvar is not None:
             opt.add_inequality_constraint(ctr_max_cvar(opt.cvar_data, max_cvar, opt.rebalance))
 
-        opt.set_max_objective(obj_max_returns(opt.data, opt.rebalance))
+        opt.set_max_objective(obj_max_returns(opt.data, opt.rebalance, True))
         return self._optimize(x0)
 
     def minimize_tracking_error(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None,
@@ -241,10 +246,10 @@ class APObjectives:
         ndarray
             Optimal weights
         """
-        opt = self.asr
+        opt = self.opt
 
         if min_ret is not None:
-            opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, use_active_return, opt.rebalance), tol)
+            opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, opt.rebalance, use_active_return), tol)
 
         opt.set_min_objective(obj_min_vol(opt.data, as_tracking_error=True))
         return self._optimize(x0)
@@ -280,10 +285,10 @@ class APObjectives:
         ndarray
             Optimal weights
         """
-        opt = self.asr
+        opt = self.opt
 
         if min_ret is not None:
-            opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, use_active_return, opt.rebalance), tol)
+            opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, opt.rebalance, use_active_return), tol)
 
         opt.set_max_objective(obj_max_cvar(opt.data, opt.rebalance))
         return self._optimize(x0)
@@ -302,12 +307,12 @@ class APObjectives:
         ndarray
             Optimal weights
         """
-        opt = self.asr
+        opt = self.opt
         opt.set_max_objective(obj_max_sharpe_ratio(opt.data, opt.rebalance, as_info_ratio=True))
         return self._optimize(x0)
 
 
-class PPObjectives:
+class PPObjectives(_Objectives):
     """
     Policy portfolio objectives.
 
@@ -321,25 +326,9 @@ class PPObjectives:
     This is a singleton class meant for easier optimization regime access for the PortfolioOptimizer
     """
 
-    def __init__(self, asr: PortfolioOptimizer):
-        self.asr = asr
-        self.asr.add_equality_constraint(sum_to_1)
-
-    def _optimize(self, x0):
-        opt = self.asr
-
-        for _ in range(self.asr.max_attempts):
-            try:
-                w = opt.optimize(x0)
-                if w is not None:
-                    return w
-
-            except nl.RoundoffLimited:
-                pass
-        else:
-            if self.asr._verbose:
-                print('No solution was found for the given problem. Check the summary() for more information')
-            return np.repeat(np.nan, self.asr.data.n_assets)
+    def __init__(self, optimizer: PortfolioOptimizer):
+        super().__init__(optimizer)
+        self.opt.add_equality_constraint(sum_to_1)
 
     def maximize_returns(self, max_vol: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None,
                          tol=0.0) -> np.ndarray:
@@ -370,7 +359,7 @@ class PPObjectives:
         ndarray
             Optimal weights
         """
-        opt = self.asr
+        opt = self.opt
 
         assert not (max_vol is None and max_cvar is None), "If maximizing returns subject to some sort of vol/CVaR " \
                                                            "constraint, we must at least specify max CVaR or max vol"
@@ -407,7 +396,7 @@ class PPObjectives:
         ndarray
             Optimal weights
         """
-        opt = self.asr
+        opt = self.opt
 
         if min_ret is not None:
             opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, opt.rebalance), tol)
@@ -439,7 +428,7 @@ class PPObjectives:
         ndarray
             Optimal weights
         """
-        opt = self.asr
+        opt = self.opt
 
         if min_ret is not None:
             opt.add_inequality_constraint(ctr_min_returns(opt.data, min_ret, opt.rebalance), tol)
@@ -461,6 +450,6 @@ class PPObjectives:
         ndarray
             Optimal weights
         """
-        opt = self.asr
+        opt = self.opt
         opt.set_max_objective(obj_max_sharpe_ratio(opt.data, opt.rebalance))
         return self._optimize(x0)

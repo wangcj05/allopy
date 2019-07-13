@@ -140,7 +140,6 @@ def get_opt_data(horizon, overweight):
 @decor_horizon
 @decor_overweight
 def test_max_eva_st_te_cvar(horizon, overweight):
-    np.random.seed(8888)
     target = 'MAX_EVA_ST_TE_CVAR'
 
     _id, data, risk_data, A, b, lb, ub = get_opt_data(horizon, overweight)
@@ -164,7 +163,6 @@ def test_max_eva_st_te_cvar(horizon, overweight):
 @decor_horizon
 @decor_overweight
 def test_max_eva_st_te(horizon, overweight):
-    np.random.seed(8888)
     target = 'MAX_EVA_ST_TE'
 
     _id, data, risk_data, A, b, lb, ub = get_opt_data(horizon, overweight)
@@ -186,7 +184,6 @@ def test_max_eva_st_te(horizon, overweight):
 @decor_horizon
 @decor_overweight
 def test_max_eva_st_cvar(horizon, overweight):
-    np.random.seed(8888)
     target = 'MAX_EVA_ST_CVAR'
 
     _id, data, risk_data, A, b, lb, ub = get_opt_data(horizon, overweight)
@@ -208,7 +205,6 @@ def test_max_eva_st_cvar(horizon, overweight):
 @decor_horizon
 @decor_overweight
 def test_min_te(horizon, overweight):
-    np.random.seed(8888)
     target = 'MIN_TE'
 
     _id, data, _, A, b, lb, ub = get_opt_data(horizon, overweight)
@@ -224,7 +220,6 @@ def test_min_te(horizon, overweight):
 @decor_horizon
 @decor_overweight
 def test_min_te_st_active_ret(horizon, overweight):
-    np.random.seed(8888)
     target = 'MIN_TE_ST_ACTIVE_RET'
 
     _id, data, _, A, b, lb, ub = get_opt_data(horizon, overweight)
@@ -245,7 +240,6 @@ def test_min_te_st_active_ret(horizon, overweight):
 @decor_horizon
 @decor_overweight
 def test_min_cvar(horizon, overweight):
-    np.random.seed(8888)
     target = 'MIN_CVAR'
 
     _id, data, _, A, b, lb, ub = get_opt_data(horizon, overweight)
@@ -266,7 +260,6 @@ def test_min_cvar(horizon, overweight):
 @decor_horizon
 @decor_overweight
 def test_min_cvar_st_active_ret(horizon, overweight):
-    np.random.seed(8888)
     target = 'MIN_CVAR_ST_ACTIVE_RET'
 
     _id, data, _, A, b, lb, ub = get_opt_data(horizon, overweight)
@@ -292,10 +285,13 @@ def test_min_cvar_st_active_ret(horizon, overweight):
 @decor_horizon
 @decor_overweight
 def test_max_information_ratio(horizon, overweight):
-    np.random.seed(8888)
+    from allopy import set_option
+
+    set_option("F.SCALE", 1e6)
     target = 'MAX_IR'
 
     _id, data, _, A, b, lb, ub = get_opt_data(horizon, overweight)
+
     exp_wgt = get_exp_wgt(_id, target)
 
     opt = PortfolioOptimizer(data, rebalance=REBALANCE)
