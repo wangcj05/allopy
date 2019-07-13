@@ -1,6 +1,11 @@
 Allopy
 ======
 
+[![Documentation Status](https://readthedocs.org/projects/allopy/badge/?version=latest)](https://allopy.readthedocs.io/en/latest/?badge=latest)
+[![PyPI version](https://badge.fury.io/py/allopy.svg)](https://badge.fury.io/py/allopy)
+[![Anaconda-Server Badge](https://anaconda.org/danielbok/allopy/badges/version.svg)](https://anaconda.org/danielbok/allopy)
+[![Anaconda-Server Badge](https://anaconda.org/danielbok/allopy/badges/latest_release_date.svg)](https://anaconda.org/danielbok/allopy)
+
 Allopy is a package used for optimizing portfolios. For documentation on usage and module API, check out the [documentation site](https://allopy.readthedocs.io).
 
 Installation
