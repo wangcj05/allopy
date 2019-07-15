@@ -10,24 +10,39 @@ Otherwise, you'll have to manage your environment setup (i.e. C-compiler setup a
 
 You can download the `Anaconda <https://www.anaconda.com/distribution>`_ or the `Miniconda <https://docs.conda.io/en/latest/miniconda.html>`_ distribution to get started. Miniconda is more bare-bones (smaller) and is thus faster to download and setup.
 
+Installing the Packages
+-----------------------
+
+You can install the packages via :code:`conda` or :code:`pypi`. If installing via :code:`conda`, make sure you have added the **conda-forge** channel. The details to do so are listed in the `Configuring Conda`_ section.
+
+.. code-block:: bash
+
+    # conda
+    conda install -c danielbok allopy
+
+    # pip
+    pip install allopy
+
 Configuring Conda
 -----------------
 
-Before anything, open your command prompt and type this command in:
+We require packages from both the :code:`conda-forge` and :code:`danielbok` channels. Before anything, open your command prompt and type this command in:
 
-.. code-block:: batch
+.. code-block:: bash
 
-    conda config --prepend channels conda-forge
+    conda config --prepend channels conda-forge --append channels danielbok
+
+This command places the **conda-forge** channel to the top of list while the **danielbok** channel will be placed at the bottom. It means that whenever you install packages, :code:`conda` will first look for the package from **conda-forge**. If it can't find the package, it will move down the list to find the package in the other channels. Once it finds the package, it will install it. Otherwise, it will throw an error.
 
 You may get an error message that reads
 
-.. code-block:: batch
+.. code-block:: bash
 
     'conda' is not recognized as an internal or external command, operable program or batch file.
 
-In this case, it means that you have not added conda to your path. What you need to do is find the folder you installed the Miniconda or Anaconda package and add them to path. T
+In this case, it means that you have not added conda to your path. What you need to do is find the folder you installed the Miniconda or Anaconda package and add them to path.
 
-Assuming you installed Miniconda to the folder :code:`C:\\Miniconda3\\`, there are 2 ways to add :code:`conda` to your path.
+Assuming you're using a Windows machine and have installed Miniconda to the folder :code:`C:\\Miniconda3\\`, there are 2 ways to add :code:`conda` to your path.
 
 Method 1
 ~~~~~~~~
@@ -46,17 +61,6 @@ The second way is to run the following line in your command prompt. However this
 .. code-block:: batch
 
     setx PATH "C:\Miniconda3\;C:\Miniconda3\condabin;%PATH%"
-
-
-Installing Allopy
------------------
-
-Install :code:`Allopy` from conda using the following commands:
-
-.. code:: batch
-
-    conda install -c danielbok muarch allopy
-
 
 Using Environments
 ------------------
