@@ -47,12 +47,12 @@ __all__ = [
     "LD_CCSAQ",
     "GN_ESCH",
     "GN_AGS",
-    "_map_algorithm",
-    "_has_gradient"
+    "map_algorithm",
+    "has_gradient"
 ]
 
 
-def _map_algorithm(algorithm):
+def map_algorithm(algorithm):
     """
     Maps the string name of an algorithm to it's nlopt equivalent
 
@@ -114,7 +114,7 @@ def _map_algorithm(algorithm):
     }[algorithm]
 
 
-def _has_gradient(algorithm) -> Union[str, bool]:
+def has_gradient(algorithm) -> Union[str, bool]:
     desc: str = algorithm_name(algorithm)
 
     if desc.endswith('(NOT COMPILED)'):

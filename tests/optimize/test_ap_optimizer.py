@@ -47,7 +47,7 @@ def assert_equal_or_better_solution(obj_fn, sol, expected, name, bigger_better, 
 
     Parameters
     ----------
-    obj_fn: callable
+    obj_fn: Callable
         Objective function
 
     sol: ndarray

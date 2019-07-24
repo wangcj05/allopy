@@ -8,9 +8,12 @@ from copulae.types import Numeric
 from allopy import get_option
 from .result import ConstraintMap, Result
 from .summary import Summary
-from ..algorithms import LD_SLSQP, _has_gradient, _map_algorithm
+from ..algorithms import LD_SLSQP, has_gradient, map_algorithm
+from ..utils import *
 
 __all__ = ['BaseOptimizer']
+
+Tolerance = Union[int, float, np.ndarray, None]
 
 
 class BaseOptimizer:
@@ -29,22 +32,22 @@ class BaseOptimizer:
         n: int
             number of assets
 
-        algorithm: str
+        algorithm: int or str
             the optimization algorithm
 
-        args:
+        args
             other arguments to setup the optimizer
 
-        kwargs:
+        kwargs
             other keyword arguments
         """
         if isinstance(algorithm, str):
-            algorithm = _map_algorithm(algorithm)
+            algorithm = map_algorithm(algorithm)
 
         self._n = n
         self._model = nl.opt(algorithm, n, *args)
 
-        has_grad = _has_gradient(algorithm)
+        has_grad = has_gradient(algorithm)
         if has_grad == 'NOT COMPILED':
             raise NotImplementedError(f"Cannot use '{nl.algorithm_name(algorithm)}' as it is not compiled")
 
@@ -93,10 +96,10 @@ class BaseOptimizer:
             Initial vector. Starting position for free variables. In many cases, especially for derivative-based
             optimizers, it is important for the initial vector to be already feasible.
 
-        args:
+        args
             other arguments to pass into the optimizer
 
-        random_start:
+        random_start: bool
             If True, the optimizer will randomly generate "bound-feasible" starting points for the decision
             variables. Note that these variables may not fulfil the other constraints. For problems where the
             bounds have been tightly defined, this often yields a good solution.
@@ -128,10 +131,12 @@ class BaseOptimizer:
             return np.repeat(np.nan, len(x0))
 
     def _get_gradient_func(self, fn: Callable):
+        assert callable(fn), "Argument must be a function"
+
         if self._auto_grad and len(inspect.signature(fn).parameters) == 1:
             if self._verbose:
                 print(f"Setting gradient for function: '{fn.__name__}'")
-            return _create_gradient_func(fn, self._eps)
+            return create_gradient_func(fn, self._eps)
         else:
             return fn
 
@@ -146,7 +151,7 @@ class BaseOptimizer:
         fn: Callable
             Objective function
 
-        args:
+        args
             Other arguments to pass to the objective function. This can be ignored in most cases
 
         Returns
@@ -173,8 +178,13 @@ class BaseOptimizer:
         fn: Callable
             Objective function
 
-        args:
+        args
             Other arguments to pass to the objective function. This can be ignored in most cases
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
         self._max_or_min = 'minimize'
         self._model.set_stopval(-float('inf'))
@@ -196,6 +206,11 @@ class BaseOptimizer:
 
         tol: float, optional
             A tolerance in judging feasibility for the purposes of stopping the optimization
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
         tol = self._c_eps if tol is None else tol
 
@@ -217,6 +232,11 @@ class BaseOptimizer:
 
         tol: float, optional
             A tolerance in judging feasibility for the purposes of stopping the optimization
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
         tol = self._c_eps if tol is None else tol
 
@@ -233,22 +253,27 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        A: {iterable float, ndarray}
+        A
             Inequality matrix. Must be 2 dimensional.
 
-        b: {scalar, ndarray}
+        b
             Inequality vector or scalar. If scalar, it will be propagated.
 
-        tol: float, optional
+        tol
             A tolerance in judging feasibility for the purposes of stopping the optimization
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
         tol = self._c_eps if tol is None else tol
 
-        A, b = _validate_matrix_constraints(A, b)
+        A, b = validate_matrix_constraints(A, b)
 
         for i, row, _b in zip(range(len(b)), A, b):
-            fn = _create_matrix_constraint(row, _b)
-            f = _create_gradient_func(fn, self._eps)
+            fn = create_matrix_constraint(row, _b)
+            f = create_gradient_func(fn, self._eps)
             self._model.add_inequality_constraint(f, tol)
             self._hin[f'A_{i}'] = fn
 
@@ -262,22 +287,27 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        Aeq: {iterable float, ndarray}
+        Aeq
             Equality matrix. Must be 2 dimensional
 
-        beq: {scalar, ndarray}
+        beq
             Equality vector or scalar. If scalar, it will be propagated
 
-        tol: float, optional
+        tol
             A tolerance in judging feasibility for the purposes of stopping the optimization
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
         tol = self._c_eps if tol is None else tol
 
-        Aeq, beq = _validate_matrix_constraints(Aeq, beq)
+        Aeq, beq = validate_matrix_constraints(Aeq, beq)
 
         for i, row, _beq in zip(range(len(beq)), Aeq, beq):
-            fn = _create_matrix_constraint(row, _beq)
-            f = _create_gradient_func(fn, self._eps)
+            fn = create_matrix_constraint(row, _beq)
+            f = create_gradient_func(fn, self._eps)
             self._model.add_equality_constraint(f, tol)
             self._heq[f'Aeq_{i}'] = fn
 
@@ -305,11 +335,11 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        lb: {int, float, ndarray}
+        lb
             Vector of lower bounds. If array, must be same length as number of free variables. If :class:`float` or
             :class:`int`, value will be propagated to all variables.
 
-        ub: {int, float, ndarray}
+        ub
             Vector of upper bounds. If array, must be same length as number of free variables. If :class:`float` or
             :class:`int`, value will be propagated to all variables.
 
@@ -329,9 +359,14 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        lb: {int, float, ndarray}
+        lb
             Vector of lower bounds. If vector, must be same length as number of free variables. If :class:`float` or
             :class:`int`, value will be propagated to all variables.
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
         if isinstance(lb, (int, float)):
             lb = np.repeat(float(lb), self._n)
@@ -347,9 +382,14 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        ub: {int, float, ndarray}
+        ub
             Vector of lower bounds. If vector, must be same length as number of free variables. If :class:`float` or
             :class:`int`, value will be propagated to all variables.
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
         if isinstance(ub, (int, float)):
             ub = np.repeat(float(ub), self._n)
@@ -368,9 +408,13 @@ class BaseOptimizer:
         ----------
         eps: float
             The gradient step
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
         assert isinstance(eps, float), "Epsilon must be a float"
-
         self._eps = eps
         return self
 
@@ -382,13 +426,17 @@ class BaseOptimizer:
         ----------
         eps: float
             Tolerance
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
         assert isinstance(eps, float), "Epsilon must be a float"
-
         self._c_eps = eps
         return self
 
-    def set_xtol_abs(self, tol: Union[float, np.ndarray]):
+    def set_xtol_abs(self, tol: Tolerance):
         """
         Sets absolute tolerances on optimization parameters.
 
@@ -399,13 +447,16 @@ class BaseOptimizer:
         ----------
         tol: {float, ndarray}
             Absolute tolerance for each of the free variables
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
-        if not isinstance(tol, float):
-            tol = np.asarray(tol, dtype=float)
-        self._model.set_xtol_abs(tol)
+        self._model.set_xtol_abs(validate_tolerance(tol))
         return self
 
-    def set_xtol_rel(self, tol: Union[float, np.ndarray]):
+    def set_xtol_rel(self, tol: Tolerance):
         """
         Sets relative tolerances on optimization parameters.
 
@@ -414,12 +465,15 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        tol: {float, ndarray}
+        tol: float or ndarray, optional
             relative tolerance for each of the free variables
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
-        if not isinstance(tol, float):
-            tol = np.asarray(tol, dtype=float)
-        self._model.set_xtol_rel(tol)
+        self._model.set_xtol_rel(validate_tolerance(tol))
         return self
 
     def set_maxeval(self, n: int):
@@ -432,11 +486,17 @@ class BaseOptimizer:
         ----------
         n: int
             maximum number of evaluations
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
+        assert isinstance(n, int), "max eval must be an integer"
         self._model.set_maxeval(n)
         return self
 
-    def set_ftol_abs(self, tol: float):
+    def set_ftol_abs(self, tol: Tolerance):
         """
         Set absolute tolerance on objective function value
 
@@ -444,11 +504,16 @@ class BaseOptimizer:
         ----------
         tol: float
             absolute tolerance of objective function value
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
-        self._model.set_ftol_abs(tol)
+        self._model.set_ftol_abs(validate_tolerance(tol))
         return self
 
-    def set_ftol_rel(self, tol: float):
+    def set_ftol_rel(self, tol: Tolerance):
         """
         Set relative tolerance on objective function value
 
@@ -456,11 +521,16 @@ class BaseOptimizer:
         ----------
         tol: float
             Absolute relative of objective function value
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
-        self._model.set_ftol_rel(tol)
+        self._model.set_ftol_rel(validate_tolerance(tol))
         return self
 
-    def set_stopval(self, stopval: float):
+    def set_stopval(self, stopval: Optional[float]):
         """
         Stop when an objective value of at least/most stopval is found depending on min or max objective
 
@@ -468,8 +538,13 @@ class BaseOptimizer:
         ----------
         stopval: float
             Stopping value
+
+        Returns
+        -------
+        BaseOptimizer
+            Own instance
         """
-        self._model.set_stopval(stopval)
+        self._model.set_stopval(validate_tolerance(stopval))
         return self
 
     def summary(self):
@@ -502,34 +577,3 @@ class BaseOptimizer:
             smry.violations = r.violations
             smry.solution = r.x
         return smry
-
-
-def _create_matrix_constraint(a, b):
-    def fn(w):
-        return a @ w - b
-
-    return fn
-
-
-def _create_gradient_func(fn, eps):
-    def f(w, grad):
-        diag = np.eye(len(w)) * eps
-        if grad.size > 0:
-            for i, c in enumerate(diag):
-                grad[i] = (fn(w + c) - fn(w - c)) / (2 * eps)
-        return fn(w)
-
-    return f
-
-
-def _validate_matrix_constraints(A, b):
-    A = np.asarray(A)
-    b = np.asarray(b)
-
-    assert A.ndim == 2, '(In)-Equality matrix `A` must be 2 dimensional!'
-
-    if b.size == 1:
-        b = np.repeat(float(b), len(A))
-    assert b.ndim == 1, '`b` vector must be 1 dimensional or a scalar'
-
-    return A, b
