@@ -1,19 +1,15 @@
-from typing import Iterable, Optional, Union
+from typing import Optional, Union
 
 import nlopt as nl
 import numpy as np
-from copulae.types import Array
 
 from allopy import OptData
+from allopy.types import OptArray, OptReal
 from .obj_ctr import *
 from ..algorithms import LD_SLSQP
 from ..base import BaseOptimizer
 
 __all__ = ['PortfolioOptimizer']
-
-OptArray = Optional[Array]
-Real = Union[int, float]  # a real number
-OptReal = Optional[Real]
 
 
 class PortfolioOptimizer(BaseOptimizer):
@@ -26,7 +22,10 @@ class PortfolioOptimizer(BaseOptimizer):
                  *args,
                  **kwargs):
         """
-        The PortfolioOptimizer houses several common pre-specified optimization regimes
+        The PortfolioOptimizer houses several common pre-specified optimization regimes.
+
+        The portfolio optimizer is ideal for modelling under certainty. That is, the portfolio is expected to
+        undergo a single fixed scenario in the future.
 
         Parameters
         ----------
@@ -76,8 +75,8 @@ class PortfolioOptimizer(BaseOptimizer):
         assert isinstance(cvar_data, OptData), "cvar_data must be an OptData instance"
 
         super().__init__(data.n_assets, algorithm, *args, **kwargs)
-        self.data = data
-        self.cvar_data = cvar_data
+        self.data: OptData = data
+        self.cvar_data: OptData = cvar_data
 
         self._rebalance = rebalance
 
@@ -110,12 +109,12 @@ class PortfolioOptimizer(BaseOptimizer):
         """
         return PPObjectives(self)
 
-    def adjust_returns(self, eva: Optional[Iterable[float]] = None, vol: Optional[Iterable[float]] = None):
-        self.data = self.data.calibrate_data(eva, vol)
+    def adjust_returns(self, eva: OptArray = None, vol: OptArray = None):
+        self.data: OptData = self.data.calibrate_data(eva, vol)
         return self
 
-    def adjust_cvar_returns(self, eva: Optional[Iterable[float]] = None, vol: Optional[Iterable[float]] = None):
-        self.cvar_data = self.cvar_data.calibrate_data(eva, vol)
+    def adjust_cvar_returns(self, eva: OptArray = None, vol: OptArray = None):
+        self.cvar_data: OptData = self.cvar_data.calibrate_data(eva, vol)
         return self
 
     @property

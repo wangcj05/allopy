@@ -1,11 +1,12 @@
 import inspect
-from typing import Callable, Iterable, Optional, Union
+from typing import Callable, Optional, Union
 
 import nlopt as nl
 import numpy as np
 from copulae.types import Numeric
 
 from allopy import get_option
+from allopy.types import OptArray, OptNumeric
 from .result import ConstraintMap, Result
 from .summary import Summary
 from ..algorithms import LD_SLSQP, has_gradient, map_algorithm
@@ -70,7 +71,7 @@ class BaseOptimizer:
         return np.asarray(self._model.get_lower_bounds(), np.float64)
 
     @lower_bounds.setter
-    def lower_bounds(self, lb: Union[int, float, np.ndarray]):
+    def lower_bounds(self, lb: OptNumeric):
         self.set_lower_bounds(lb)
 
     @property
@@ -79,10 +80,10 @@ class BaseOptimizer:
         return np.asarray(self._model.get_upper_bounds(), np.float64)
 
     @upper_bounds.setter
-    def upper_bounds(self, ub: Union[int, float, np.ndarray]):
+    def upper_bounds(self, ub: OptNumeric):
         self.set_upper_bounds(ub)
 
-    def optimize(self, x0: Optional[Iterable[float]] = None, *args, random_start=False) -> np.ndarray:
+    def optimize(self, x0: OptArray = None, *args, random_start=False) -> np.ndarray:
         """
         Runs the optimizer and returns the optimal results if any.
 
