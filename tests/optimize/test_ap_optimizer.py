@@ -27,7 +27,7 @@ import numpy as np
 import pytest
 from copulae.core import corr2cov, near_psd
 
-from allopy.optimize import PortfolioOptimizer, OptData
+from allopy import OptData, PortfolioOptimizer
 from tests.optimize.setup import get_exp_wgt, read_A, read_corr, read_meta_data, read_sim_ret
 
 decor_horizon = pytest.mark.parametrize('horizon', [5, 10])

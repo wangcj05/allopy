@@ -99,7 +99,7 @@ class OptData(np.ndarray):
         --------
         If we have a (60 x 1000 x 10) data and we want to aggregate the assets the first 3 indexes,
 
-        >>> from allopy.optimize import OptData
+        >>> from allopy import OptData
         >>> import numpy as np
         >>>
         >>> np.random.seed(8888)
@@ -152,7 +152,7 @@ class OptData(np.ndarray):
         Example
         -------
         >>> import numpy as np
-        >>> from allopy.optimize import OptData
+        >>> from allopy import OptData
         >>>
         >>> np.random.seed(8888)
         >>> data = np.random.standard_normal((120, 10000, 7))
@@ -595,7 +595,7 @@ def alter_frequency(data, from_='month', to_='quarter'):
     Example
     -------
     >>> import numpy as np
-    >>> from allopy.optimize import alter_frequency
+    >>> from allopy.opt_data import alter_frequency
     >>>
     >>> np.random.seed(8888)
     >>> data = np.random.standard_normal((120, 10000, 7))
@@ -648,7 +648,7 @@ def coalesce_covariance_matrix(cov,
     Examples
     --------
     If we have a (60 x 1000 x 10) data and we want to aggregate the assets the first 3 indexes,
-    >>> from allopy.optimize.opt_data import coalesce_covariance_matrix
+    >>> from allopy.opt_data import coalesce_covariance_matrix
     >>> import numpy as np
     form covariance matrix
     >>> np.random.seed(8888)
