@@ -2,8 +2,7 @@ from typing import Optional, Union
 
 from copulae.types import Array
 
-from allopy import get_option
-from .opt_data import OptData
+from allopy import OptData, get_option
 
 OptArray = Optional[Array]
 Real = Union[int, float]  # a real number

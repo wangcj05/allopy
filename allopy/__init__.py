@@ -1,5 +1,6 @@
 from allopy._config import get_option, set_option
-from allopy.optimize import PortfolioOptimizer, BaseOptimizer, OptData
+from allopy.opt_data import OptData
+from allopy.optimize import BaseOptimizer, PortfolioOptimizer
 from ._version import get_versions
 
 v = get_versions()

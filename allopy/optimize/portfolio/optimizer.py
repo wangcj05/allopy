@@ -4,10 +4,10 @@ import nlopt as nl
 import numpy as np
 from copulae.types import Array
 
-from .algorithms import LD_SLSQP
-from .base import BaseOptimizer
+from allopy import OptData
 from .obj_ctr import *
-from .opt_data import OptData
+from ..algorithms import LD_SLSQP
+from ..base import BaseOptimizer
 
 __all__ = ['PortfolioOptimizer']
 
@@ -262,7 +262,7 @@ class APObjectives(_Objectives):
 
         If the `min_ret` is specified, the optimizer will search for an optimal portfolio where the returns are at least
         as large as the value specified (if possible).
-        
+
         Parameters
         ----------
         min_ret: float, optional
