@@ -131,16 +131,6 @@ class BaseOptimizer:
                 print('No solution was found for the given problem. Check the summary() for more information')
             return np.repeat(np.nan, len(x0))
 
-    def _get_gradient_func(self, fn: Callable):
-        assert callable(fn), "Argument must be a function"
-
-        if self._auto_grad and len(inspect.signature(fn).parameters) == 1:
-            if self._verbose:
-                print(f"Setting gradient for function: '{fn.__name__}'")
-            return create_gradient_func(fn, self._eps)
-        else:
-            return fn
-
     def set_max_objective(self, fn: Callable, *args):
         """
         Sets the optimizer to maximize the objective function. If gradient of the objective function is not set and the
@@ -162,9 +152,7 @@ class BaseOptimizer:
         """
         self._max_or_min = 'maximize'
         self._model.set_stopval(float('inf'))
-
-        f = self._get_gradient_func(fn)
-        self._model.set_max_objective(f, *args)
+        self._model.set_max_objective(self._set_gradient(fn), *args)
 
         return self
 
@@ -189,8 +177,7 @@ class BaseOptimizer:
         """
         self._max_or_min = 'minimize'
         self._model.set_stopval(-float('inf'))
-        f = self._get_gradient_func(fn)
-        self._model.set_min_objective(f, *args)
+        self._model.set_min_objective(self._set_gradient(fn), *args)
 
         return self
 
@@ -215,9 +202,8 @@ class BaseOptimizer:
         """
         tol = self._c_eps if tol is None else tol
 
-        f = self._get_gradient_func(fn)
         self._hin[fn.__name__] = fn
-        self._model.add_inequality_constraint(f, tol)
+        self._model.add_inequality_constraint(self._set_gradient(fn), tol)
         return self
 
     def add_equality_constraint(self, fn: Callable, tol=None):
@@ -241,9 +227,8 @@ class BaseOptimizer:
         """
         tol = self._c_eps if tol is None else tol
 
-        f = self._get_gradient_func(fn)
         self._heq[fn.__name__] = fn
-        self._model.add_equality_constraint(f, tol)
+        self._model.add_equality_constraint(self._set_gradient(fn), tol)
         return self
 
     def add_inequality_matrix_constraint(self, A, b, tol=None):
@@ -316,17 +301,7 @@ class BaseOptimizer:
 
     def remove_all_constraints(self):
         """Removes all constraints"""
-        self.remove_equality_constraints()
-        self.remove_equality_constraints()
-        return self
-
-    def remove_inequality_constraints(self):
-        """Removes all inequality constraints"""
         self._model.remove_inequality_constraints()
-        return self
-
-    def remove_equality_constraints(self):
-        """Removes all equality constraints"""
         self._model.remove_equality_constraints()
         return self
 
@@ -578,3 +553,13 @@ class BaseOptimizer:
             smry.violations = r.violations
             smry.solution = r.x
         return smry
+
+    def _set_gradient(self, fn: Callable):
+        assert callable(fn), "Argument must be a function"
+
+        if self._auto_grad and len(inspect.signature(fn).parameters) == 1:
+            if self._verbose:
+                print(f"Setting gradient for function: '{fn.__name__}'")
+            return create_gradient_func(fn, self._eps)
+        else:
+            return fn
