@@ -1,5 +1,5 @@
-ASR Optimizer
-=============
+Portfolio Optimizer
+===================
 
 The :class:`PortfolioOptimizer` inherits the :class:`BaseOptimizer` to add several convenience methods. These methods include common optimization programs which would be tedious to craft with the :class:`BaseOptimizer` over and over again. Of course, as an extension, it can do anything that the :class:`BaseOptimizer` can. However, if that's the goal, it would be better to stick with the :class:`BaseOptimizer` to reduce confusion when reading the code.
 

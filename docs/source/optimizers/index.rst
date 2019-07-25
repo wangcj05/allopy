@@ -1,13 +1,24 @@
 API
 ===
 
-The optimizers are the classes responsible for finding the ideal weights. The underlying optimizer is built from the `nlopt <https://nlopt.readthedocs.io/en/latest/>`_ package
+The optimizers are the classes responsible for finding the ideal weights. The underlying optimizer is built from the `nlopt <https://nlopt.readthedocs.io/en/latest/>`_ package. The optimizers are classified into 2 categories, **Deterministic** and **Discrete State Uncertainty**.
+
+**Deterministic optimizers** are suitable for instances where the problem scenario is known. For example, if it is expected to only have one market scenario, then it is suitable to use the optimizers under this category.
+
+**Discrete State Uncertainty optimizers** are suitable for instances where there are multiple problem scenarios and when a discrete probability can be assigned to each scenario. For instance, there could be 3 scenarios that would happen in the future. Baseline at 50%, Upside at 30% and Downside at 20%. In this case, this class of optimizers will be most suitable to model the optimization problem.
+
+Presently, **Continuous State Uncertainty optimizers** are not implemented in the package.
 
 .. toctree::
-    :caption: Allopy Optimizer API
+    :caption: Deterministic Optimizers
 
     Base Optimizer <base>
     Portfolio Optimizer <portfolio>
+
+.. toctree::
+    :caption: Discrete State Uncertainty Optimizers
+
+    Regret Optimizer <regret>
 
 
 Algorithms
