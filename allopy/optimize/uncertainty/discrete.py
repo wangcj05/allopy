@@ -1,13 +1,16 @@
 import inspect
+import re
 from abc import ABC, abstractmethod
 from functools import partial
 from typing import Callable, List, Optional, Tuple, Union
 
 import nlopt as nl
 import numpy as np
+import pandas as pd
+from statsmodels.iolib.summary2 import Summary
 
 from allopy import get_option
-from allopy.types import Numeric, OptArray, OptReal
+from allopy.types import Numeric, OptArray
 from .result import ConstraintFuncMap, ConstraintMap, Result
 from ..algorithms import LD_SLSQP, has_gradient, map_algorithm
 from ..utils import *
@@ -19,32 +22,90 @@ __all__ = ["Cubes", "DiscreteUncertaintyOptimizer"]
 
 class DiscreteUncertaintyOptimizer(ABC):
 
-    def __init__(self, num_assets: int, num_scenarios: int, prob: OptArray = None, algorithm=LD_SLSQP, *args, **kwargs):
-        """
+    def __init__(self,
+                 num_assets: int,
+                 num_scenarios: int,
+                 prob: OptArray = None,
+                 algorithm=LD_SLSQP,
+                 auto_grad: Optional[bool] = None,
+                 eps_step: Optional[float] = None,
+                 c_eps: Optional[float] = None,
+                 xtol_abs: Union[float, np.ndarray, None] = None,
+                 xtol_rel: Union[float, np.ndarray, None] = None,
+                 ftol_abs: Optional[float] = None,
+                 ftol_rel: Optional[float] = None,
+                 max_eval: Optional[int] = None,
+                 stopval: Optional[float] = None,
+                 verbose=False):
+        r"""
         The DiscreteUncertaintyOptimizer is an abstract optimizer used for optimizing under uncertainty.
         It's main optimization method must be implemented. See the :class:`RegretOptimizer` as an example.
-
-        The default algorithm used is Sequential Least Squares Quadratic Programming.
 
         Parameters
         ----------
         num_assets: int
-            number of assets
+            Number of assets
 
         num_scenarios: int
-            number of scenarios
+            Number of scenarios
 
         prob
-            vector containing probability of each scenario occurring
+            Vector containing probability of each scenario occurring
 
-        algorithm: str
-            the optimization algorithm
+        algorithm
+            The optimization algorithm. Default algorithm is Sequential Least Squares Quadratic Programming.
 
-        args:
-            other arguments to setup the optimizer
+        auto_grad: bool, optional
+            If True, the optimizer will calculate numeric gradients for functions that do not specify its
+            gradients. The symmetric difference quotient method is used in this case
 
-        kwargs:
-            other keyword arguments
+        eps_step: float, optional
+            Epsilon, smallest degree of change, for numeric gradients
+
+        c_eps: float, optional
+            Constraint epsilon is the tolerance for the inequality and equality constraints functions. Any
+            value that is less than the constraint epsilon is considered to be within the boundary.
+
+        xtol_abs: float or np.ndarray, optional
+            Set absolute tolerances on optimization parameters. :code:`tol` is an array giving the
+            tolerances: stop when an optimization step (or an estimate of the optimum) changes every
+            parameter :code:`x[i]` by less than :code:`tol[i]`. For convenience, if a scalar :code:`tol`
+            is given, it will be used to set the absolute tolerances in all n optimization parameters to
+            the same value. Criterion is disabled if tol is non-positive.
+
+        xtol_rel: float or np.ndarray, optional
+            Set relative tolerance on optimization parameters: stop when an optimization step (or an estimate
+            of the optimum) causes a relative change the parameters :code:`x` by less than :code:`tol`,
+            i.e. :math:`\|\Delta x\|_w < tol \cdot \|x\|_w` measured by a weighted :math:`L_1` norm
+            :math:`\|x\|_w = \sum_i w_i |x_i|`, where the weights :math:`w_i` default to 1. (If there is
+            any chance that the optimal :math:`\|x\|` is close to zero, you might want to set an absolute
+            tolerance with `code:`xtol_abs` as well.) Criterion is disabled if tol is non-positive.
+
+        ftol_abs: float, optional
+            Set absolute tolerance on function value: stop when an optimization step (or an estimate of
+            the optimum) changes the function value by less than :code:`tol`. Criterion is disabled if
+            tol is non-positive.
+
+        ftol_rel: float, optional
+            Set relative tolerance on function value: stop when an optimization step (or an estimate of
+            the optimum) changes the objective function value by less than :code:`tol` multiplied by the
+            absolute value of the function value. (If there is any chance that your optimum function value
+            is close to zero, you might want to set an absolute tolerance with :code:`ftol_abs` as well.)
+            Criterion is disabled if tol is non-positive.
+
+        max_eval: int, optional
+            Stop when the number of function evaluations exceeds :code:`maxeval`. (This is not a strict
+            maximum: the number of function evaluations may exceed :code:`maxeval` slightly, depending
+            upon the algorithm.) Criterion is disabled if maxeval is non-positive.
+
+        stopval: int, optional
+            Stop when an objective value of at least :code:`stopval` is found: stop minimizing when an
+            objective value ≤ :code:`stopval` is found, or stop maximizing a value ≥ :code:`stopval` is
+            found. (Setting :code:`stopval` to :code:`-HUGE_VAL` for minimizing or :code:`+HUGE_VAL` for
+            maximizing disables this stopping criterion.)
+
+        verbose: bool
+            If True, the optimizer will report its operations
         """
         self._algorithm = map_algorithm(algorithm) if isinstance(algorithm, str) else algorithm
 
@@ -55,22 +116,20 @@ class DiscreteUncertaintyOptimizer(ABC):
         self._prob = np.repeat(1 / num_scenarios, num_scenarios)
         self.set_prob(prob)
 
-        self._model = nl.opt(algorithm, num_assets, *args)
-
         has_grad = has_gradient(self._algorithm)
         if has_grad == 'NOT COMPILED':
             raise NotImplementedError(f"Cannot use '{nl.algorithm_name(self._algorithm)}' as it is not compiled")
 
         # optimizer setup
-        self._auto_grad: bool = kwargs.get('auto_grad', has_grad)
-        self._eps: Optional[float] = kwargs.get("eps_step", get_option('EPS.STEP'))
-        self._c_eps: Optional[float] = kwargs.get("c_eps", get_option('EPS.CONSTRAINT'))
-        self._x_tol_abs: Optional[float] = kwargs.get("xtol_abs", get_option('EPS.X_ABS'))
-        self._x_tol_rel: Optional[float] = kwargs.get("xtol_rel", None)
-        self._f_tol_abs: Optional[float] = kwargs.get("ftol_abs", get_option('EPS.FUNCTION'))
-        self._f_tol_rel: Optional[float] = kwargs.get("ftol_rel", None)
-        self._max_eval: Optional[float] = kwargs.get("max_eval", get_option('MAX.EVAL'))
-        self._stop_val: Optional[float] = kwargs.get("stop_val", None)
+        self._auto_grad: bool = auto_grad if auto_grad is not None else has_grad
+        self._eps: Optional[float] = eps_step or get_option('EPS.STEP')
+        self._c_eps: Optional[float] = abs(c_eps or get_option('EPS.CONSTRAINT'))
+        self._x_tol_abs: Optional[float] = xtol_abs or get_option('EPS.X_ABS')
+        self._x_tol_rel: Optional[float] = xtol_rel
+        self._f_tol_abs: Optional[float] = ftol_abs or get_option('EPS.FUNCTION')
+        self._f_tol_rel: Optional[float] = ftol_rel
+        self._max_eval: Optional[float] = max_eval or get_option('MAX.EVAL')
+        self._stop_val: Optional[float] = stopval
 
         # func
         self._obj_fun: List[Callable[[np.ndarray], float]] = []
@@ -84,9 +143,11 @@ class DiscreteUncertaintyOptimizer(ABC):
         self._ub: OptArray = None
 
         # result formatting options
-        self._result: Optional[Result] = None
+        self._result = Result()
         self._max_or_min = None
-        self._verbose = kwargs.get('verbose', False)
+        self._verbose = verbose
+
+        self._solution = None
 
     @property
     def prob(self):
@@ -100,7 +161,9 @@ class DiscreteUncertaintyOptimizer(ABC):
     @property
     def lower_bounds(self):
         """Lower bound of each variable"""
-        return np.asarray(self._model.get_lower_bounds(), np.float64)
+        if self._lb is None:
+            return np.repeat(-np.inf, self._num_assets)
+        return self._lb
 
     @lower_bounds.setter
     def lower_bounds(self, lb: Union[int, float, np.ndarray]):
@@ -109,7 +172,9 @@ class DiscreteUncertaintyOptimizer(ABC):
     @property
     def upper_bounds(self):
         """Upper bound of each variable"""
-        return np.asarray(self._model.get_upper_bounds(), np.float64)
+        if self._ub is None:
+            return np.repeat(np.inf, self._num_assets)
+        return self._ub
 
     @upper_bounds.setter
     def upper_bounds(self, ub: Union[int, float, np.ndarray]):
@@ -140,7 +205,7 @@ class DiscreteUncertaintyOptimizer(ABC):
         self._obj_fun = [self._format_func(fn, cube) for cube in scenarios]
 
         self._max_or_min = 'maximize'
-        self.set_stopval(float("inf"))
+        self._stop_val = float('inf') if self._stop_val is None else self._stop_val
 
         return self
 
@@ -168,7 +233,7 @@ class DiscreteUncertaintyOptimizer(ABC):
         self._obj_fun = [self._format_func(fn, cube) for cube in scenarios]
 
         self._max_or_min = 'minimize'
-        self._model.set_stopval(-float('inf'))
+        self._stop_val = -float('inf') if self._stop_val is None else self._stop_val
 
         return self
 
@@ -193,7 +258,7 @@ class DiscreteUncertaintyOptimizer(ABC):
             Own instance
         """
         self._validate_num_scenarios(scenarios)
-        self._hin[fn.__name__] = [self._set_gradient(self._format_func(fn, cube)) for cube in scenarios]
+        self._hin[fn.__name__] = [self._format_func(fn, cube) for cube in scenarios]
         return self
 
     def add_equality_constraint(self, fn: Callable, scenarios: Cubes):
@@ -217,7 +282,7 @@ class DiscreteUncertaintyOptimizer(ABC):
             Own instance
         """
         self._validate_num_scenarios(scenarios)
-        self._heq[fn.__name__] = [self._set_gradient(self._format_func(fn, cube)) for cube in scenarios]
+        self._heq[fn.__name__] = [self._format_func(fn, cube) for cube in scenarios]
         return self
 
     def add_inequality_matrix_constraint(self, A, b):
@@ -242,7 +307,7 @@ class DiscreteUncertaintyOptimizer(ABC):
         A, b = validate_matrix_constraints(A, b)
 
         for i, row, _b in zip(range(len(b)), A, b):
-            self._min[f'A_{i}'] = create_gradient_func(create_matrix_constraint(row, _b), self._eps)
+            self._min[f'A_{i}'] = create_matrix_constraint(row, _b)
 
         return self
 
@@ -268,7 +333,7 @@ class DiscreteUncertaintyOptimizer(ABC):
         Aeq, beq = validate_matrix_constraints(Aeq, beq)
 
         for i, row, _beq in zip(range(len(beq)), Aeq, beq):
-            self._meq[f'Aeq_{i}'] = create_gradient_func(create_matrix_constraint(row, _beq), self._eps)
+            self._meq[f'Aeq_{i}'] = create_matrix_constraint(row, _beq)
 
         return self
 
@@ -363,7 +428,7 @@ class DiscreteUncertaintyOptimizer(ABC):
         DiscreteUncertaintyOptimizer
             Own instance
         """
-        assert isinstance(eps, float), "Epsilon must be a float"
+        assert isinstance(eps, float) and eps >= 0, "Epsilon must be a float that is >= 0"
 
         self._eps = eps
         return self
@@ -382,7 +447,7 @@ class DiscreteUncertaintyOptimizer(ABC):
         DiscreteUncertaintyOptimizer
             Own instance
         """
-        assert isinstance(eps, float), "Epsilon must be a float"
+        assert isinstance(eps, float) and eps >= 0, "Epsilon must be a float that is >= 0"
 
         self._c_eps = eps
         return self
@@ -391,14 +456,15 @@ class DiscreteUncertaintyOptimizer(ABC):
         """
         Sets absolute tolerances on optimization parameters.
 
-        The tol input must be an array of length `n` specified in the initialization. Alternatively, pass a single
-        number in order to set the same tolerance for all optimization parameters.
-
-        Set to None if no tolerance is needed.
+        The absolute tolerances on optimization parameters. :code:`tol` is an array giving the
+        tolerances: stop when an optimization step (or an estimate of the optimum) changes every
+        parameter :code:`x[i]` by less than :code:`tol[i]`. For convenience, if a scalar :code:`tol`
+        is given, it will be used to set the absolute tolerances in all n optimization parameters to
+        the same value. Criterion is disabled if tol is non-positive.
 
         Parameters
         ----------
-        tol: {float, ndarray}
+        tol: float or np.ndarray
             Absolute tolerance for each of the free variables
 
         Returns
@@ -413,14 +479,16 @@ class DiscreteUncertaintyOptimizer(ABC):
         """
         Sets relative tolerances on optimization parameters.
 
-        The tol input must be an array of length `n` specified in the initialization. Alternatively, pass a single
-        number in order to set the same tolerance for all optimization parameters.
-
-        Set to None if no tolerance is needed.
+        Set relative tolerance on optimization parameters: stop when an optimization step (or an estimate
+        of the optimum) causes a relative change the parameters :code:`x` by less than :code:`tol`,
+        i.e. :math:`\|\Delta x\|_w < tol \cdot \|x\|_w` measured by a weighted :math:`L_1` norm
+        :math:`\|x\|_w = \sum_i w_i |x_i|`, where the weights :math:`w_i` default to 1. (If there is
+        any chance that the optimal :math:`\|x\|` is close to zero, you might want to set an absolute
+        tolerance with `code:`xtol_abs` as well.) Criterion is disabled if tol is non-positive.
 
         Parameters
         ----------
-        tol: {float, ndarray}
+        tol: float or np.ndarray
             relative tolerance for each of the free variables
 
         Returns
@@ -435,7 +503,9 @@ class DiscreteUncertaintyOptimizer(ABC):
         """
         Sets maximum number of objective function evaluations.
 
-        After maximum number of evaluations, optimization will stop. Set 0 or negative for no limit.
+        Stop when the number of function evaluations exceeds :code:`maxeval`. (This is not a strict
+        maximum: the number of function evaluations may exceed :code:`maxeval` slightly, depending
+        upon the algorithm.) Criterion is disabled if maxeval is non-positive.
 
         Parameters
         ----------
@@ -455,7 +525,9 @@ class DiscreteUncertaintyOptimizer(ABC):
         """
         Set absolute tolerance on objective function value.
 
-        Set to None if no tolerance is needed.
+        The absolute tolerance on function value: stop when an optimization step (or an estimate of
+        the optimum) changes the function value by less than :code:`tol`. Criterion is disabled if
+        tol is non-positive.
 
         Parameters
         ----------
@@ -474,7 +546,11 @@ class DiscreteUncertaintyOptimizer(ABC):
         """
         Set relative tolerance on objective function value.
 
-        Set to None if no tolerance is needed.
+        Set relative tolerance on function value: stop when an optimization step (or an estimate of
+        the optimum) changes the objective function value by less than :code:`tol` multiplied by the
+        absolute value of the function value. (If there is any chance that your optimum function value
+        is close to zero, you might want to set an absolute tolerance with :code:`ftol_abs` as well.)
+        Criterion is disabled if tol is non-positive.
 
         Parameters
         ----------
@@ -491,9 +567,12 @@ class DiscreteUncertaintyOptimizer(ABC):
 
     def set_stopval(self, stopval: Optional[float]):
         """
-        Stop when an objective value of at least/most stopval is found depending on min or max objective.
+        Sets the :code:`stopval`.
 
-        Set to None if there are no stop values.
+        When the objective value of a problem of at least :code:`stopval` is found: stop minimizing
+        when an objective value ≤ :code:`stopval` is found, or stop maximizing a value ≥ :code:`stopval`
+        is found. (Setting :code:`stopval` to :code:`-HUGE_VAL` for minimizing or :code:`+HUGE_VAL` for
+        maximizing disables this stopping criterion.)
 
         Parameters
         ----------
@@ -530,16 +609,54 @@ class DiscreteUncertaintyOptimizer(ABC):
         self._prob = np.asarray(prob)
         return self
 
-    @abstractmethod
-    def optimize(self, x0: OptArray, tol: OptReal = None, random_start=False):
-        raise NotImplementedError
+    @property
+    def solution(self) -> np.ndarray:
+        """
+        Returns the solution to the optimization problem
+
+        Returns
+        -------
+        np.ndarray
+            Numpy array of the solution
+
+        Raises
+        ------
+        RuntimeError
+            Model is not optimized yet.
+        """
+        if self._solution is None:
+            raise RuntimeError("Model has not been optimized yet")
+        return self._solution
 
     @abstractmethod
-    def summary(self):
+    def optimize(self, x0: OptArray):
         raise NotImplementedError
+
+    def summary(self):
+        smry = Summary()
+        smry.add_title(re.sub("([A-Z])", r" \1", self.__class__.__name__).strip())
+
+        if self._result.sol is None:
+            smry.add_text("Problem has not been optimized yet")
+            return smry
+
+        smry.add_df(pd.DataFrame({
+            "Assets": [i + 1 for i in range(self._num_assets)],
+            "Weight": self._result.sol,
+        }))
+
+        if self._result.props:
+            smry.add_df(pd.DataFrame({
+                "Scenario": [i + 1 for i in range(self._num_scenarios)],
+                "Proportion (%)": self._result.props.round(4) * 100
+            }))
+
+        smry.add_text("Optimization completed successfully")
+
+        return smry
 
     @staticmethod
-    def _format_func(fn: Callable[[np.ndarray, np.ndarray], float], cube: np.ndarray):
+    def _format_func(fn: Callable[[np.ndarray, np.ndarray], float], cube: np.ndarray) -> Callable[[np.ndarray], float]:
         """Formats the objective or constraint function"""
         assert callable(fn), "Argument must be a function"
         f = partial(fn, np.asarray(cube))
