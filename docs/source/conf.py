@@ -17,10 +17,10 @@ import os
 import shutil
 import sys
 
-import allopy
-
 root = os.path.abspath('../..')
 sys.path.insert(0, root)
+
+import allopy
 
 # copy over examples
 examples = os.path.join(os.path.dirname(__file__), 'examples')
@@ -56,6 +56,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
+    'sphinx_autodoc_typehints',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -199,4 +200,14 @@ epub_title = project
 # A list of files that should not be packed into the epub file.
 epub_exclude_files = ['search.html']
 
+
 # -- Extension configuration -------------------------------------------------
+
+def skip(app, what, name, obj, would_skip, options):
+    if name == "__init__":
+        return False
+    return would_skip
+
+
+def setup(app):
+    app.connect("autodoc-skip-member", skip)
