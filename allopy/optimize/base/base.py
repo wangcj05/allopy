@@ -83,13 +83,42 @@ class BaseOptimizer:
     def upper_bounds(self, ub: OptNumeric):
         self.set_upper_bounds(ub)
 
-    def optimize(self, x0: OptArray = None, *args, random_start=False) -> np.ndarray:
-        """
+    def optimize(self,
+                 x0: OptArray = None,
+                 *args,
+                 initial_solution: Optional[str] = "random",
+                 random_state: Optional[int] = None) -> np.ndarray:
+        r"""
         Runs the optimizer and returns the optimal results if any.
 
-        If no initial vector is set, the optimizer will ATTEMPT to randomly generate a feasible one. However,
-        there is no guarantee in the feasibility. In general, it is a tough problem to find a feasible solution
-        in high-dimensional spaces, much more an optimal one.
+        Notes
+        -----
+        An initial vector must be set and the quality of any solution (especially gradient-based ones) will lie
+        on this initial vector. Alternatively, the optimizer will ATTEMPT to randomly generate a feasible one if
+        the :code:`initial_solution` argument is set to "random". However, there is no guarantee in the feasibility.
+        In general, it is a tough problem to find a feasible solution in high-dimensional spaces, much more
+        an optimal one. Thus use the random initial solution at your own risk.
+
+        Notes - Initial Solution
+        ------------------------
+        The following lists the options for finding an initial solution for the optimization problem. It is best if
+        the user supplies an initial value instead of using the heuristics provided if the user already knows the
+        region to search.
+
+        random
+            Randomly generates "bound-feasible" starting points for the decision variables. Note
+            that these variables may not fulfil the other constraints. For problems where the bounds have been
+            tightly defined, this often yields a good solution.
+
+        min_constraint_norm
+            Solves the optimization problem listed below. The objective is to minimize the :math:`L_2` norm of the
+            constraint functions while keeping the decision variables bounded by the original problem's bounds.
+
+            .. math::
+
+                \min | constraint |^2 \\
+                s.t. \\
+                LB \leq x \leq UB
 
         Parameters
         ----------
@@ -100,26 +129,27 @@ class BaseOptimizer:
         args
             other arguments to pass into the optimizer
 
-        random_start: bool
-            If True, the optimizer will randomly generate "bound-feasible" starting points for the decision
-            variables. Note that these variables may not fulfil the other constraints. For problems where the
-            bounds have been tightly defined, this often yields a good solution.
+        initial_solution: str, optional
+            The method to find the initial solution if the initial vector :code:`x0` is not specified. Set as
+            :code:`None` to disable. However, if disabled, the initial vector must be supplied. See notes on
+            Initial Solution for more information
+
+        random_state: int, optional
+            Random seed. Applicable if :code:`initial_solution` is not :code:`None`
 
         Returns
         -------
         ndarray
             Values of free variables at optimality
         """
-        if x0 is None and random_start:
-            lb = self.lower_bounds
-            ub = self.upper_bounds
 
-            if np.isinf(lb).any() or np.isinf(ub).any():
-                x0 = np.random.uniform(size=self._n)
-            else:
-                x0 = np.random.uniform(lb, ub)
+        assert x0 is not None or initial_solution is not None, \
+            "If initial vector is not specified, method for initial_solution must be specified"
 
-        elif hasattr(x0, "__iter__"):
+        if x0 is None:
+            x0 = self._initial_points(initial_solution, random_state)
+
+        if hasattr(x0, "__iter__"):
             x0 = np.asarray(x0)
 
         sol = self._model.optimize(x0, *args)
@@ -553,6 +583,36 @@ class BaseOptimizer:
             smry.violations = r.violations
             smry.solution = r.x
         return smry
+
+    def _initial_points(self, method: str, random_state):
+        def generate_random_starting_points():
+            if isinstance(random_state, int):
+                np.random.seed(random_state)
+
+            if np.isinf(self.lower_bounds).any() or np.isinf(self.upper_bounds).any():
+                return np.random.uniform(size=self._n)
+            else:
+                return np.random.uniform(self.lower_bounds, self.upper_bounds)
+
+        def min_constraint():
+            model = BaseOptimizer(self._n)
+            model.set_bounds(self.lower_bounds, self.upper_bounds)
+
+            eq_cstr = list(self._heq.values())
+            in_cstr = list(self._hin.values())
+
+            def obj_fun(w):
+                return (sum([1e5 * f(w) ** 2 for f in eq_cstr]) + sum([f(w) ** 2 for f in in_cstr])) ** 0.5
+
+            model.set_min_objective(obj_fun)
+            return model.optimize(generate_random_starting_points())
+
+        if method.lower() == "random":
+            return generate_random_starting_points()
+        elif method.lower() == "min_constraint_norm":
+            return min_constraint()
+        else:
+            raise ValueError(f"Unknown initial solution method '{method}'. Check the docs for valid methods")
 
     def _set_gradient(self, fn: Callable):
         assert callable(fn), "Argument must be a function"

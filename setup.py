@@ -17,6 +17,11 @@ install_requires = [
     'pandas >=0.24'
 ]
 
+tests_require = [
+    "pytest",
+    "pytest-cov"
+]
+
 setup(
     name=PACKAGE_NAME,
     license='MIT',
@@ -39,5 +44,6 @@ setup(
     install_requires=install_requires,
     include_package_data=True,
     python_requires='>=3.6',
+    test_require=tests_require,
     zip_safe=False
 )
