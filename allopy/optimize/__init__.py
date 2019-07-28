@@ -1,3 +1,3 @@
 from .base import BaseOptimizer
-from .portfolio import PortfolioOptimizer
+from .portfolio import ActivePortfolioOptimizer, PortfolioOptimizer
 from .regret import RegretOptimizer

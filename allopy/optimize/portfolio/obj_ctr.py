@@ -9,7 +9,7 @@ Real = Union[int, float]  # a real number
 OptReal = Optional[Real]
 
 __all__ = ['ctr_max_cvar', 'ctr_max_vol', 'ctr_min_returns', 'obj_max_cvar', 'obj_max_returns', 'obj_max_sharpe_ratio',
-           'obj_min_vol', 'sum_to_1']
+           'obj_min_vol', 'sum_equal_1']
 
 
 def ctr_max_vol(data: OptData, max_vol: float, active_risk=False):
@@ -78,7 +78,7 @@ def obj_min_vol(data: OptData, as_tracking_error=False):
     return _obj_min_vol
 
 
-def sum_to_1(w: Array):
+def sum_equal_1(w: Array):
     return sum(w) - 1
 
 
