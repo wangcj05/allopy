@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import nlopt as nl
 import numpy as np
@@ -6,6 +6,8 @@ import numpy as np
 from allopy.optimize import BaseOptimizer
 from allopy.types import OptArray
 from .funcs import *
+from .result import RegretResult
+from .summary import RegretSummary
 from ..algorithms import LD_SLSQP
 from ..uncertainty import DiscreteUncertaintyOptimizer
 
@@ -28,7 +30,7 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
                  max_eval: Optional[int] = None,
                  stopval: Optional[float] = None,
                  verbose=False,
-                 max_attempts=100):
+                 max_attempts=5):
         r"""
         The RegretOptimizer houses several common pre-specified optimization regimes for scenario based
         optimization.
@@ -144,8 +146,9 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         super().__init__(num_assets, num_scenarios, prob, algorithm, auto_grad, eps_step, c_eps,
                          xtol_abs, xtol_rel, ftol_abs, ftol_rel, max_eval, stopval, verbose)
 
-        self._max_attempts = 0
-        self.max_attempts = max_attempts
+        assert isinstance(max_attempts, int) and max_attempts > 0, 'max_attempts must be an integer >= 1'
+        self._max_attempts = max_attempts
+        self._result = RegretResult(num_assets, num_scenarios)
 
     def optimize(self,
                  x0: OptArray = None,
@@ -313,6 +316,45 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
     def max_attempts(self, value: int):
         assert isinstance(value, int) and value > 0, 'max_attempts must be an integer >= 1'
         self._max_attempts = value
+
+    def set_meta(self, *,
+                 asset_names: Optional[List[str]] = None,
+                 scenario_names: Optional[List[str]] = None):
+        """
+        Sets meta data which will be used for result summary
+
+        Parameters
+        ----------
+        asset_names: list of str, optional
+            Names of each asset class
+
+        scenario_names: list of str, optional
+            Names of each scenario
+        """
+        if scenario_names:
+            self._result.scenario_names = scenario_names
+
+        if asset_names:
+            self._result.asset_names = asset_names
+
+        return self
+
+    @property
+    def scenario_names(self):
+        return self._result.scenario_names
+
+    @scenario_names.setter
+    def scenario_names(self, value: List[str]):
+        error = f"scenario_names must be a list with {self._num_scenarios} unique names"
+        assert hasattr(value, "__iter__"), error
+
+        value = list(set([str(i) for i in value]))
+        assert len(value) == self._num_scenarios, error
+
+        self._result.scenario_names = value
+
+    def summary(self):
+        return RegretSummary(self._result)
 
     def _setup_optimization_model(self, index: int):
         """Sets up the Base Optimizer"""

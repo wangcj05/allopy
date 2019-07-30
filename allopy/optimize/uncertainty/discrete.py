@@ -1,13 +1,9 @@
-import inspect
 import re
 from abc import ABC, abstractmethod
-from functools import partial
 from typing import Callable, List, Optional, Tuple, Union
 
 import nlopt as nl
 import numpy as np
-import pandas as pd
-from statsmodels.iolib.summary2 import Summary
 
 from allopy import get_option
 from allopy.types import Numeric, OptArray
@@ -109,8 +105,8 @@ class DiscreteUncertaintyOptimizer(ABC):
         """
         self._algorithm = map_algorithm(algorithm) if isinstance(algorithm, str) else algorithm
 
-        assert isinstance(num_assets, int), "num_assets must be an integer"
-        assert isinstance(num_scenarios, int), "num_assets must be an integer"
+        assert isinstance(num_assets, int) and num_assets > 0, "num_assets must be an integer and more than 0"
+        assert isinstance(num_scenarios, int) and num_scenarios > 0, "num_assets must be an integer and more than 0"
         self._num_assets = num_assets
         self._num_scenarios = num_scenarios
         self._prob = np.repeat(1 / num_scenarios, num_scenarios)
@@ -143,7 +139,7 @@ class DiscreteUncertaintyOptimizer(ABC):
         self._ub: OptArray = None
 
         # result formatting options
-        self._result = Result()
+        self._result = Result(num_assets, num_scenarios)
         self._max_or_min = None
         self._verbose = verbose
 
@@ -632,48 +628,29 @@ class DiscreteUncertaintyOptimizer(ABC):
     def optimize(self, x0: OptArray):
         raise NotImplementedError
 
-    def summary(self):
-        smry = Summary()
-        smry.add_title(re.sub("([A-Z])", r" \1", self.__class__.__name__).strip())
-
+    @property
+    def result(self):
         if self._result.sol is None:
-            smry.add_text("Problem has not been optimized yet")
-            return smry
+            raise Exception("Problem has not been optimized yet")
+        return self._result
 
-        smry.add_df(pd.DataFrame({
-            "Assets": [i + 1 for i in range(self._num_assets)],
-            "Weight": self._result.sol,
-        }))
+    @abstractmethod
+    def summary(self):
+        raise NotImplementedError
 
-        if self._result.props:
-            smry.add_df(pd.DataFrame({
-                "Scenario": [i + 1 for i in range(self._num_scenarios)],
-                "Proportion (%)": self._result.props.round(4) * 100
-            }))
-
-        smry.add_text("Optimization completed successfully")
-
-        return smry
+    def _validate_num_functions(self, funcs: List):
+        error_msg = f"Number of functions do not match. Functions given: {len(funcs)}. " \
+            f"Functions expected: {self._num_scenarios}"
+        assert len(funcs) == self._num_scenarios, error_msg
 
     @staticmethod
-    def _format_func(fn: Callable[[np.ndarray, np.ndarray], float], cube: np.ndarray) -> Callable[[np.ndarray], float]:
-        """Formats the objective or constraint function"""
-        assert callable(fn), "Argument must be a function"
-        f = partial(fn, np.asarray(cube))
-        f.__name__ = fn.__name__
-        return f
+    def _build_name(name, names):
+        last_index = -1
+        for n in names:
+            match = re.match(name + r"(?:_(\d+))?$", n)
+            if match:
+                index = int(match.group(1) or 0)
+                if index > last_index:
+                    last_index = index
 
-    def _set_gradient(self, fn):
-        """Sets a numerical gradient for the function if the gradient is not specified"""
-        assert callable(fn), "Argument must be a function"
-        if self._auto_grad and len(inspect.signature(fn).parameters) == 1:
-            if self._verbose:
-                print(f"Setting gradient for function: '{fn.__name__}'")
-            return create_gradient_func(fn, self._eps)
-        else:
-            return fn
-
-    def _validate_num_scenarios(self, scenarios: Cubes):
-        error_msg = f"Number of scenarios do not match. Scenarios given: {len(scenarios)}. " \
-            f"Scenarios expected: {self._num_scenarios}"
-        assert len(scenarios) == self._num_scenarios, error_msg
+        return name if last_index == -1 else f"{name}_{last_index + 1}"
