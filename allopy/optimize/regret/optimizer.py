@@ -148,7 +148,7 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
 
         assert isinstance(max_attempts, int) and max_attempts > 0, 'max_attempts must be an integer >= 1'
         self._max_attempts = max_attempts
-        self._result = RegretResult(num_assets, num_scenarios)
+        self._result: RegretResult = RegretResult(num_assets, num_scenarios)
 
     def optimize(self,
                  x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
@@ -386,6 +386,10 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
     def max_attempts(self, value: int):
         assert isinstance(value, int) and value > 0, 'max_attempts must be an integer >= 1'
         self._max_attempts = value
+
+    @property
+    def result(self) -> RegretResult:
+        return super().result
 
     def set_meta(self, *,
                  asset_names: Optional[List[str]] = None,

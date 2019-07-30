@@ -633,8 +633,6 @@ class DiscreteUncertaintyOptimizer(ABC):
 
     @property
     def result(self):
-        if self._result.sol is None:
-            raise Exception("Problem has not been optimized yet")
         return self._result
 
     @abstractmethod

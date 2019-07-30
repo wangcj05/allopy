@@ -22,19 +22,16 @@ class RegretSummary(Summary):
         self.add_text("Optimization completed successfully")
 
     def _add_first_level_solutions(self):
-        self.add_df(pd.DataFrame({
-            "Assets": self.result.asset_names,
-            **{s: w for s, w in zip(self.result.scenario_names, self.result.first_level_solutions)},
-        }))
+        self.add_df(pd.DataFrame(
+            {s: w for s, w in zip(self.result.scenario_names, self.result.first_level_solutions)},
+            self.result.asset_names)
+        )
 
     def _add_final_weights(self):
-        self.add_df(pd.DataFrame({
-            "Assets": self.result.asset_names,
-            "Weight": self.result.sol,
-        }))
+        self.add_df(pd.DataFrame({"Weight": self.result.sol}, self.result.asset_names))
 
     def _add_scenario_proportions(self):
-        if self.result.props:
+        if self.result.props is not None:
             self.add_df(pd.DataFrame({
                 "Scenario": self.result.scenario_names,
                 "Proportion (%)": self.result.props.round(4) * 100
