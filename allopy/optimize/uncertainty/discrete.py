@@ -176,109 +176,112 @@ class DiscreteUncertaintyOptimizer(ABC):
     def upper_bounds(self, ub: Union[int, float, np.ndarray]):
         self.set_upper_bounds(ub)
 
-    def set_max_objective(self, fn: Callable, scenarios: Cubes):
+    def set_max_objective(self, functions: List[Callable]):
         """
         Sets the optimizer to maximize the objective function. If gradient of the objective function is not set and the
         algorithm used to optimize is gradient-based, the optimizer will attempt to insert a smart numerical gradient
         for it.
 
+        The list of functions needs to match the number of scenarios. The function at index 0 will be assigned as
+        the objective function to the first optimization regime.
+
         Parameters
         ----------
-        fn: Callable
-            Objective function. The first argument of the function takes in the cube while the second argument
-            takes in the weight.
-
-        scenarios
-            A list of Monte Carlo simulation cubes, each representing a discrete scenario. This must be a 4
-            dimensional object
+        functions: List of Callable
+            Objective function. The function signature should be such that the first argument takes in a weight
+            vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
+            given, the user must put adjust the gradients inplace.
 
         Returns
         -------
         DiscreteUncertaintyOptimizer
             Own instance
         """
-        self._validate_num_scenarios(scenarios)
-        self._obj_fun = [self._format_func(fn, cube) for cube in scenarios]
+        self._validate_num_functions(functions)
+        self._obj_fun = functions
 
         self._max_or_min = 'maximize'
         self._stop_val = float('inf') if self._stop_val is None else self._stop_val
 
         return self
 
-    def set_min_objective(self, fn: Callable, scenarios: Cubes):
+    def set_min_objective(self, functions: List[Callable]):
         """
         Sets the optimizer to minimize the objective function. If gradient of the objective function is not set and the
         algorithm used to optimize is gradient-based, the optimizer will attempt to insert a smart numerical gradient
         for it.
 
+        The list of functions needs to match the number of scenarios. The function at index 0 will be assigned as
+        the objective function to the first optimization regime.
+
         Parameters
         ----------
-        fn: Callable
-            Objective function
-
-        scenarios
-            A list of Monte Carlo simulation cubes, each representing a discrete scenario. This must be a 4
-            dimensional object
+        functions: List of Callable
+            Objective function. The function signature should be such that the first argument takes in a weight
+            vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
+            given, the user must put adjust the gradients inplace.
 
         Returns
         -------
         DiscreteUncertaintyOptimizer
             Own instance
         """
-        self._validate_num_scenarios(scenarios)
-        self._obj_fun = [self._format_func(fn, cube) for cube in scenarios]
+        self._validate_num_functions(functions)
+        self._obj_fun = functions
 
         self._max_or_min = 'minimize'
         self._stop_val = -float('inf') if self._stop_val is None else self._stop_val
 
         return self
 
-    def add_inequality_constraint(self, fn: Callable, scenarios: Cubes):
+    def add_inequality_constraint(self, functions: List[Callable]):
         """
         Adds the equality constraint function in standard form, A <= b. If the gradient of the constraint function is
         not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
         numerical gradient for it.
 
+        The list of functions needs to match the number of scenarios. The function at index 0 will be assigned as
+        a constraint function to the first optimization regime.
+
         Parameters
         ----------
-        fn: Callable
-            Constraint function
-
-        scenarios
-            A list of Monte Carlo simulation cubes, each representing a discrete scenario. This must be a 4
-            dimensional object
+        functions: List of Callable
+            Constraint functions. The function signature should be such that the first argument takes in a weight
+            vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
+            given, the user must put adjust the gradients inplace.
 
         Returns
         -------
         DiscreteUncertaintyOptimizer
             Own instance
         """
-        self._validate_num_scenarios(scenarios)
-        self._hin[fn.__name__] = [self._format_func(fn, cube) for cube in scenarios]
+        self._validate_num_functions(functions)
+        self._hin[self._build_name(functions[0].__name__, self._hin.keys())] = functions
         return self
 
-    def add_equality_constraint(self, fn: Callable, scenarios: Cubes):
+    def add_equality_constraint(self, functions: List[Callable]):
         """
         Adds the equality constraint function in standard form, A = b. If the gradient of the constraint function
         is not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
         numerical gradient for it.
 
+        The list of functions needs to match the number of scenarios. The function at index 0 will be assigned as
+        a constraint function to the first optimization regime.
+
         Parameters
         ----------
-        fn: Callable
-            Constraint function
-
-        scenarios
-            A list of Monte Carlo simulation cubes, each representing a discrete scenario. This must be a 4
-            dimensional object
+        functions: List of Callable
+            Constraint function. The function signature should be such that the first argument takes in a weight
+            vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
+            given, the user must put adjust the gradients inplace.
 
         Returns
         -------
         DiscreteUncertaintyOptimizer
             Own instance
         """
-        self._validate_num_scenarios(scenarios)
-        self._heq[fn.__name__] = [self._format_func(fn, cube) for cube in scenarios]
+        self._validate_num_functions(functions)
+        self._heq[self._build_name(functions[0].__name__, self._heq.keys())] = functions
         return self
 
     def add_inequality_matrix_constraint(self, A, b):

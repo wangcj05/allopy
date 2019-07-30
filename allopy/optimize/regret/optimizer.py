@@ -151,10 +151,12 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         self._result = RegretResult(num_assets, num_scenarios)
 
     def optimize(self,
-                 x0: OptArray = None,
-                 random_start=False,
+                 x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
+                 x0_prop: OptArray = None,
+                 initial_solution: Optional[str] = "random",
                  approx=True,
-                 dist_func: Callable[[np.ndarray], np.ndarray] = lambda x: x ** 2):
+                 dist_func: Callable[[np.ndarray], np.ndarray] = lambda x: x ** 2,
+                 random_state: Optional[int] = None):
         r"""
         Finds the minimal regret solution across the range of scenarios
 
@@ -186,14 +188,41 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         This formulation makes a strong assumption that the final minimal regret portfolio is a linear
         combination of the weights from each scenario's optimal.
 
+        Notes - Initial Solution
+        ------------------------
+        The following lists the options for finding an initial solution for the optimization problem. It is best if
+        the user supplies an initial value instead of using the heuristics provided if the user already knows the
+        region to search.
+
+        random
+            Randomly generates "bound-feasible" starting points for the decision variables. Note
+            that these variables may not fulfil the other constraints. For problems where the bounds have been
+            tightly defined, this often yields a good solution.
+
+        min_constraint_norm
+            Solves the optimization problem listed below. The objective is to minimize the :math:`L_2` norm of the
+            constraint functions while keeping the decision variables bounded by the original problem's bounds.
+
+            .. math::
+
+                \min | constraint |^2 \\
+                s.t. \\
+                LB \leq x \leq UB
+
         Parameters
         ----------
-        x0: ndarray, optional
-            Initial solution vector to start the optimization. Use this if there is already an opinion of
-            where the solution will be.
+        x0_first_level: list of list of floats or ndarray, optional
+            List of initial solution vector for each scenario optimization. If provided, the list must have the
+            same length at the first dimension as the number of solutions.
 
-        random_start: bool
-            If True, a random initial vector will be used to start the optimization.
+        x0_prop: list of floats, optional
+            Initial solution vector for the regret optimization (2nd level). This can either be the final
+            optimization weights if :code:`approx` is :code:`False` or the scenario proportion otherwise.
+
+        initial_solution: str, optional
+            The method to find the initial solution if the initial vector :code:`x0` is not specified. Set as
+            :code:`None` to disable. However, if disabled, the initial vector must be supplied. See notes on
+            Initial Solution for more information
 
         approx: bool
             If True, a linear approximation will be used to calculate the regret optimal. See Notes.
@@ -202,59 +231,84 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
             A callable function that will be applied as a distance metric for the regret function. The
             default is a quadratic function. See Notes.
 
+        random_state: int, optional
+            Random seed. Applicable if :code:`initial_solution` is "random"
+
         Returns
         -------
         ndarray
             Optimal solution weights
         """
+        if isinstance(random_state, int) and isinstance(initial_solution, str) and initial_solution.lower() == "random":
+            np.random.seed(random_state)
+
+        x0_first_level = self._validate_first_level_solution(x0_first_level)
+
         # optimal solution to each scenario. Each row represents a single scenario and
         # each column represents an asset class
         solutions = np.array([
             self._optimize(
                 self._setup_optimization_model(i),
-                x0,
-                random_start
+                x0_first_level[i],
+                initial_solution
             ) for i in range(self._num_scenarios)
         ])
 
         if approx:
-            props, weights = self._optimize_approx(solutions, dist_func)
+            props, weights = self._optimize_approx(x0_prop, solutions, dist_func, initial_solution)
         else:
-            weights = self._optimize_actual(solutions, dist_func)
-            props = None
+            props, weights = self._optimize_actual(x0_prop, solutions, dist_func, initial_solution)
 
-        self._result.update(self._c_eps, self._hin, self._heq, self._min, self._meq, weights, props)
+        self._result.update(self._c_eps, self._hin, self._heq, self._min, self._meq, weights, props, solutions)
 
         return weights
 
-    def _optimize(self, model: BaseOptimizer, x0: OptArray = None, random_start=False):
+    def _optimize(self, model: BaseOptimizer, x0: OptArray = None, initial_solution=None):
         """Helper method to run the model"""
 
         for _ in range(self.max_attempts):
             try:
-                w = model.optimize(x0, random_start=random_start)
-                if w is not None:
+                w = model.optimize(x0, initial_solution=initial_solution)
+                if w is None or np.isnan(w).any():
+                    if initial_solution is None:
+                        initial_solution = "random"
+                    x0 = None
+                else:
                     return w
 
             except (nl.RoundoffLimited, RuntimeError):
-                x0 = np.random.uniform(self.lower_bounds, self.upper_bounds)
+                if initial_solution is None:
+                    initial_solution = "random"
+                x0 = None
         else:
             if self._verbose:
                 print('No solution was found for the given problem. Check the summary() for more information')
             return np.repeat(np.nan, self._num_assets)
 
-    def _optimize_actual(self, solutions: np.ndarray, dist_func: Callable):
+    def _optimize_actual(self,
+                         x0: OptArray,
+                         solutions: np.ndarray,
+                         dist_func: Callable,
+                         initial_solution: Optional[str] = None):
         """
         Runs the second step (regret minimization) using the actual weights as the decision variable
 
         Parameters
         ----------
+        x0
+            Initial solution. If provided, this must be the final portfolio weights
+
         solutions
             Matrix of solution where the rows represents the weights for the scenario and the
             columns represent the asset classes
 
         dist_func: Callable
             Distance function to scale the objective function
+
+        initial_solution: str, optional
+            The method to find the initial solution if the initial vector :code:`x0` is not specified. Set as
+            :code:`None` to disable. However, if disabled, the initial vector must be supplied. See notes on
+            Initial Solution for more information
         """
         f_values = np.array(self._obj_fun[i](s) for i, s in enumerate(solutions))
 
@@ -265,47 +319,63 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
                 cost = np.asarray(dist_func(cost))
             return sum(self.prob * cost)
 
-        model = BaseOptimizer(self._num_scenarios)
+        model = BaseOptimizer(self._num_assets)
         model.set_min_objective(regret)
         model.set_bounds(self.lower_bounds, self.upper_bounds)
 
         for constraints, set_constraint in [(self._meq.values(), model.add_equality_matrix_constraint),
                                             (self._min.values(), model.add_inequality_matrix_constraint)]:
             for c in constraints:
-                set_constraint(self._set_gradient(c), self._c_eps)
+                set_constraint(c, self._c_eps)
 
-        return self._optimize(model)
+        return None, self._optimize(model,
+                                    solutions.mean(0) if x0 is None else x0,
+                                    initial_solution)
 
-    def _optimize_approx(self, solutions: np.ndarray, dist_func: Callable):
+    def _optimize_approx(self,
+                         x0: OptArray,
+                         solutions: np.ndarray,
+                         dist_func: Callable,
+                         initial_solution: Optional[str] = None):
         """
         Runs the second step (regret minimization) where the decision variable
 
         Parameters
         ----------
+        x0
+            Initial solution. If provided, this must be the proportion of each scenario's contribution to
+            the final portfolio weights
+
         solutions
             Matrix of solution where the rows represents the weights for the scenario and the
             columns represent the asset classes
 
         dist_func: Callable
             Distance function to scale the objective function
+
+        initial_solution: str, optional
+            The method to find the initial solution if the initial vector :code:`x0` is not specified. Set as
+            :code:`None` to disable. However, if disabled, the initial vector must be supplied. See notes on
+            Initial Solution for more information
         """
 
         # weighted function values for each scenario
         f_values: np.ndarray = np.array([self._obj_fun[i](s) for i, s in enumerate(solutions)])
 
         def regret(p):
-            curr_f_values = np.array([self._obj_fun[i](p @ s) for i, s in enumerate(solutions)])
-            cost = f_values - curr_f_values
+            cost = f_values - np.array([f(p @ solutions) for f in self._obj_fun])
             if callable(dist_func):
                 cost = np.asarray(dist_func(cost))
-            return sum(self.prob * cost)
+            return 100 * sum(self.prob * cost)
 
         model = BaseOptimizer(self._num_scenarios)
         model.set_min_objective(regret)
         model.add_equality_constraint(sum_to_1)
         model.set_bounds(0, 1)
 
-        proportions = self._optimize(model)
+        proportions = self._optimize(model,
+                                     np.eye(self._num_scenarios).mean(0) if x0 is None else x0,
+                                     initial_solution)
         return proportions, proportions @ solutions
 
     @property
@@ -359,17 +429,16 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
     def _setup_optimization_model(self, index: int):
         """Sets up the Base Optimizer"""
         model = BaseOptimizer(self._num_assets, self._algorithm, verbose=self._verbose)
+        model.set_bounds(self.lower_bounds, self.upper_bounds)
 
         # sets up optimizer's programs and bounds
         for item, set_option in [
             (self._x_tol_abs, model.set_xtol_abs),
-            (self._x_tol_rel, model, model.set_xtol_rel),
+            (self._x_tol_rel, model.set_xtol_rel),
             (self._f_tol_abs, model.set_ftol_abs),
             (self._f_tol_rel, model.set_ftol_rel),
             (self._max_eval, model.set_maxeval),
             (self._stop_val, model.set_stopval),
-            (self._lb, model.set_lower_bounds),
-            (self._ub, model.set_upper_bounds)
         ]:
             if item is not None:
                 set_option(item)
@@ -378,19 +447,29 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         for constraints, set_constraint in [(self._min.values(), model.add_inequality_matrix_constraint),
                                             (self._meq.values(), model.add_equality_matrix_constraint)]:
             for c in constraints:
-                set_constraint(self._set_gradient(c), self._c_eps)
+                set_constraint(c, self._c_eps)
 
         for constraints, set_constraint in [(self._heq.values(), model.add_equality_constraint),
                                             (self._hin.values(), model.add_inequality_constraint)]:
-            set_constraint(self._set_gradient(constraints[index]), self._c_eps)
+            for c in constraints:
+                set_constraint(c[index], self._c_eps)
 
         # sets up the objective function
-        assert self._max_or_min in ('maximize', 'mimimize') and len(self._obj_fun) == 0, \
+        assert self._max_or_min in ('maximize', 'minimize') and len(self._obj_fun) == self._num_scenarios, \
             "Objective function is not set yet. Use the .set_max_objective() or .set_min_objective() methods to do so"
 
         if self._max_or_min == "maximize":
-            model.set_max_objective(self._set_gradient(self._obj_fun[index]))
+            model.set_max_objective(self._obj_fun[index])
         else:
-            model.set_min_objective(self._set_gradient(self._obj_fun[index]))
+            model.set_min_objective(self._obj_fun[index])
 
         return model
+
+    def _validate_first_level_solution(self, x0_first_level: Optional[Union[List[OptArray], np.ndarray]]):
+        if x0_first_level is None:
+            return [None] * self._num_scenarios
+
+        assert len(x0_first_level) == self._num_scenarios, \
+            "Initial first level solution data must match number of scenarios"
+
+        return x0_first_level
