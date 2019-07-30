@@ -5,7 +5,7 @@ import numpy as np
 
 from allopy.optimize import BaseOptimizer
 from allopy.types import OptArray
-from .funcs import *
+from .obj_ctr import sum_equal_1
 from .result import RegretResult
 from .summary import RegretSummary
 from ..algorithms import LD_SLSQP
@@ -32,8 +32,7 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
                  verbose=False,
                  max_attempts=5):
         r"""
-        The RegretOptimizer houses several common pre-specified optimization regimes for scenario based
-        optimization.
+        The RegretOptimizer is a convenience class for scenario based optimization.
 
         Notes
         -----
@@ -370,7 +369,7 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
 
         model = BaseOptimizer(self._num_scenarios)
         model.set_min_objective(regret)
-        model.add_equality_constraint(sum_to_1)
+        model.add_equality_constraint(sum_equal_1)
         model.set_bounds(0, 1)
 
         proportions = self._optimize(model,

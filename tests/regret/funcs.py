@@ -1,21 +1,8 @@
 import numpy as np
-import pandas as pd
 
 from allopy import OptData
 
-__all__ = ["assets", "scenarios", "get_adjustments", "obj_max_returns", "cvar_fun", "sum_to_1"]
-
-assets = 'DMEQ', 'EMEQ', 'PE', 'RE', 'NB', 'EILB', 'CASH'
-scenarios = 'Baseline', 'Goldilocks', 'Stagflation', 'HHT'
-
-
-def get_adjustments(outlook: pd.DataFrame, scenario: str, horizon: int, field: str):
-    value_map = outlook.query(f"SCENARIO == '{scenario}' & HORIZON == {horizon}") \
-        .groupby('ASSET') \
-        .apply(lambda x: x[field]) \
-        .droplevel(1)
-
-    return [value_map[asset] for asset in assets]
+__all__ = ["obj_max_returns", "cvar_fun", "sum_to_1"]
 
 
 def obj_max_returns(cube: OptData):

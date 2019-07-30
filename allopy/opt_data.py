@@ -6,7 +6,7 @@ from copulae.core import is_psd, near_psd
 from copulae.types import Array
 from muarch.calibrate import calibrate_data
 
-__all__ = ['OptData', 'alter_frequency', 'calibrate_data', 'coalesce_covariance_matrix']
+__all__ = ['OptData', 'alter_frequency', 'calibrate_data', 'coalesce_covariance_matrix', 'translate_frequency']
 
 
 # noinspection PyMissingConstructor
@@ -40,7 +40,7 @@ class OptData(np.ndarray):
                                "periods, `n` represents the trials and `a` represents the assets"
 
         periods, trials, n_assets = data.shape
-        self.time_unit = _translate_frequency(time_unit)
+        self.time_unit = translate_frequency(time_unit)
 
         # empirical covariance taken along the time-asset axis then averaged by trials
         # annualized data
@@ -605,8 +605,8 @@ def alter_frequency(data, from_='month', to_='quarter'):
     """
 
     # type check and convert strings to integers
-    to_ = _translate_frequency(to_)
-    from_ = _translate_frequency(from_)
+    to_ = translate_frequency(to_)
+    from_ = translate_frequency(from_)
 
     if to_ == from_:
         return data
@@ -684,14 +684,7 @@ def coalesce_covariance_matrix(cov,
     return float(cov) if cov.size == 1 else near_psd(cov)
 
 
-def _format_weights(w, data: OptData) -> np.ndarray:
-    """Formats weight inputs. Raises errors if the weights do not have the right number of elements"""
-    w = np.ravel(w)
-    assert len(w) == data.n_assets, f'input weights should have {data.n_assets} elements'
-    return w
-
-
-def _translate_frequency(_freq: Union[str, int]) -> int:
+def translate_frequency(_freq: Union[str, int]) -> int:
     """Translates a given frequency to the integer equivalent with checks"""
     if isinstance(_freq, str):
         _freq_ = _freq.lower()
@@ -708,3 +701,10 @@ def _translate_frequency(_freq: Union[str, int]) -> int:
 
     assert isinstance(_freq, int) and _freq > 0, 'frequency can only be a positive integer or a string name'
     return _freq
+
+
+def _format_weights(w, data: OptData) -> np.ndarray:
+    """Formats weight inputs. Raises errors if the weights do not have the right number of elements"""
+    w = np.ravel(w)
+    assert len(w) == data.n_assets, f'input weights should have {data.n_assets} elements'
+    return w
