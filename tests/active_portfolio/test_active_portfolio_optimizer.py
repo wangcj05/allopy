@@ -1,10 +1,10 @@
 """
-This file tests AP optimization. By default, AP optimization does not rebalance [REBALANCE = False]
+This file tests Active optimization. By default, Active optimization does not rebalance [REBALANCE = False]
 
 We test the optimization regimes on 5 and 10 years with overweight set to False and True for a total of 4 combinations.
 Overweight refers to whether 2 additional asset classes are added.
 
-We have 8 ASR optimization programs:
+We have 8 optimization programs:
 1) Maximize EVA st Risk and CVaR constraints
 2) Maximize EVA st Risk constraint
 3) Maximize EVA st CVaR constraint
@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 
 from allopy import ActivePortfolioOptimizer
-from .conftest import get_id
+from .utils import get_id
 
 decor_horizon = pytest.mark.parametrize('horizon', [5, 10])
 decor_overweight = pytest.mark.parametrize('overweight', [False, True])
@@ -108,8 +108,8 @@ def total_return(data):
     return func
 
 
-@decor_horizon
-@decor_overweight
+@pytest.mark.parametrize('horizon', [5, 10])
+@pytest.mark.parametrize('overweight', [False, True])
 def test_max_eva_st_te_cvar(horizon, overweight, bounds, sim_ret, ineq_cstr, exp_wgt):
     target = 'MAX_EVA_ST_TE_CVAR'
     id = get_id(horizon, overweight)

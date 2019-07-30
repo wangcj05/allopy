@@ -8,6 +8,7 @@ import pytest
 from copulae.core import corr2cov, near_psd
 
 from allopy import OptData
+from .utils import get_id
 
 __data_dir = path.join(path.dirname(__file__), 'data')
 
@@ -19,10 +20,6 @@ def get_excel_data(name: str, sheets: List[str] = None) -> Dict[str, pd.DataFram
     with pd.ExcelFile(path.join(__data_dir, name)) as xl:
         sheets = set(xl.sheet_names) if sheets is None else set(sheets)
         return {sheet: xl.parse(sheet) for sheet in xl.sheet_names if sheet in sheets}
-
-
-def get_id(horizon: int, overweight: bool):
-    return f"{horizon}Y{'O' if overweight else 'NO'}"
 
 
 @pytest.fixture("module")

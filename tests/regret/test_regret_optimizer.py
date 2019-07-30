@@ -1,7 +1,4 @@
-import os
-
 import numpy as np
-import pandas as pd
 import pytest
 from numpy.testing import assert_almost_equal
 
@@ -9,11 +6,6 @@ from allopy import OptData, RegretOptimizer
 from allopy.datasets import load_monte_carlo
 from .data import Test1, Test2
 from .funcs import *
-
-
-@pytest.fixture
-def outlook():
-    return pd.read_csv(os.path.join(os.path.dirname(__file__), "data/scenario.csv"))
 
 
 @pytest.mark.parametrize("config", [Test1, Test2])

@@ -189,11 +189,9 @@ class OptData(np.ndarray):
         OptData
             an instance of :class:`OptData`
         """
-        data = calibrate_data(self, mean, sd, self.time_unit)
         if inplace:
-            self[:] = OptData(data[:], self.time_unit)
-            return self
-        return OptData(data, self.time_unit)
+            return calibrate_data(self, mean, sd, self.time_unit, True)
+        return OptData(calibrate_data(self, mean, sd, self.time_unit), self.time_unit)
 
     @property
     def cov_mat(self):

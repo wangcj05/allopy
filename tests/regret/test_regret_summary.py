@@ -1,17 +1,9 @@
-import os
-
-import pandas as pd
 import pytest
 
 from allopy import OptData, RegretOptimizer
 from allopy.datasets import load_monte_carlo
 from .data import Test1
 from .funcs import *
-
-
-@pytest.fixture
-def outlook():
-    return pd.read_csv(os.path.join(os.path.dirname(__file__), "data/scenario.csv"))
 
 
 @pytest.mark.parametrize("config", [Test1])
