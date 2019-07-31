@@ -25,13 +25,13 @@ def ctr_max_vol(data: List[OptData], max_vol: List[float], active_risk=False):
     return [make_ctr_max_vol(d, v) for d, v in zip(data, max_vol)]
 
 
-def ctr_max_cvar(data: List[OptData], max_cvar: List[float], rebalance: bool, active_cvar=False):
+def ctr_max_cvar(data: List[OptData], max_cvar: List[float], rebalance: bool, percentile=5.0, active_cvar=False):
     """CVaR must be greater than max_cvar"""
 
     def make_ctr_max_cvar(d: OptData, cvar: float):
         def _ctr_max_cvar(w):
             w = _active_weights(w, active_cvar)
-            return get_option("F.SCALE") * (cvar - d.cvar(w, rebalance))
+            return get_option("F.SCALE") * (cvar - d.cvar(w, rebalance, percentile=percentile))
 
         return _ctr_max_cvar
 

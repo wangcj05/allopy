@@ -1,4 +1,5 @@
 import warnings
+from copy import deepcopy
 from typing import Iterable, Optional, Union
 
 import numpy as np
@@ -229,7 +230,7 @@ class OptData(np.ndarray):
             A new instance of the cut :class:`OptData`
         """
         limit = int(years * self.time_unit)
-        data = self.copy()[:limit] if copy else self[:limit]
+        data = deepcopy(self)[:limit] if copy else self[:limit]
         data.n_years = years
         return data
 

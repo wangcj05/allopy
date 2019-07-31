@@ -1,5 +1,3 @@
-import numpy as np
-
 from allopy import OptData
 
 __all__ = ["obj_max_returns", "cvar_fun", "sum_to_1"]
@@ -7,9 +5,7 @@ __all__ = ["obj_max_returns", "cvar_fun", "sum_to_1"]
 
 def obj_max_returns(cube: OptData):
     def obj_fun(w):
-        m = (cube @ w + 1).prod(0)
-        ret = (np.sign(m) * np.abs(m) ** 0.05).mean() - 1
-        return 1e2 * ret
+        return 1e2 * cube.expected_return(w, True)
 
     return obj_fun
 

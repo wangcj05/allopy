@@ -164,6 +164,7 @@ class PortfolioRegretOptimizer(RegretOptimizer):
                          cvar_data: Optional[List[Union[np.ndarray, OptData]]] = None,
                          max_vol: Optional[Union[float, Iterable[float]]] = None,
                          max_cvar: Optional[Union[float, Iterable[float]]] = None,
+                         percentile=5.0,
                          x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
                          x0_prop: OptArray = None,
                          approx=True,
@@ -192,6 +193,10 @@ class PortfolioRegretOptimizer(RegretOptimizer):
 
         max_cvar: float or list of floats, optional
             Maximum cvar_data allowed. If a scalar, the same value will be used for each scenario optimization.
+
+        percentile: float
+            The CVaR percentile value. This means to the expected shortfall will be calculated from values
+            below this threshold
 
         x0_first_level: list of list of floats or ndarray, optional
             List of initial solution vector for each scenario optimization. If provided, the list must have the
@@ -231,7 +236,7 @@ class PortfolioRegretOptimizer(RegretOptimizer):
             self.add_inequality_constraint(ctr_max_vol(data, max_vol))
 
         if max_cvar is not None:
-            self.add_inequality_constraint(ctr_max_cvar(cvar_data, max_cvar, self.rebalance))
+            self.add_inequality_constraint(ctr_max_cvar(cvar_data, max_cvar, self.rebalance, percentile))
 
         self._set_sum_equal_1_constraint()
         self.set_max_objective(obj_max_returns(data, self.rebalance))
@@ -421,7 +426,7 @@ class PortfolioRegretOptimizer(RegretOptimizer):
 
     def _set_sum_equal_1_constraint(self):
         if self._sum_to_1:
-            self.add_inequality_constraint([sum_equal_1] * self._num_scenarios)
+            self.add_equality_constraint([sum_equal_1] * self._num_scenarios)
 
 
 def format_constraints(value: Optional[Union[float, Iterable[float]]], num_scenarios: int):
