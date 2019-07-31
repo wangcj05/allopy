@@ -75,8 +75,8 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         """
         super().__init__(data, algorithm, cvar_data, rebalance, time_unit, False, *args, **kwargs)
 
-    def maximize_eva(self, max_te: OptReal = None, max_cvar: OptReal = None, x0: OptArray = None,
-                     tol=0.0) -> np.ndarray:
+    def maximize_eva(self, max_te: OptReal = None, max_cvar: OptReal = None, percentile=5.0, x0: OptArray = None,
+                     active_cvar=False, tol=0.0) -> np.ndarray:
         """
         Optimizes the expected value added of the portfolio subject to max tracking error and/or cvar constraint.
         At least one of the tracking error or cvar constraint must be defined.
@@ -93,8 +93,16 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         max_cvar: float, optional
             Maximum cvar_data allowed
 
+        percentile: float
+            The CVaR percentile value. This means to the expected shortfall will be calculated from values
+            below this threshold
+
         x0: ndarray
             Initial vector. Starting position for free variables
+
+        active_cvar: bool
+            If True, calculates the CVaR of only the active portfolio of the portfolio. If False, calculates the
+            CVaR of the entire portfolio.
 
         tol: float
             A tolerance for the constraints in judging feasibility for the purposes of stopping the optimization
@@ -111,7 +119,11 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
             self.add_inequality_constraint(ctr_max_vol(self.data, max_te, True), tol)
 
         if max_cvar is not None:
-            self.add_inequality_constraint(ctr_max_cvar(self.cvar_data, max_cvar, self.rebalance))
+            self.add_inequality_constraint(ctr_max_cvar(self.cvar_data,
+                                                        max_cvar,
+                                                        self.rebalance,
+                                                        percentile,
+                                                        active_cvar))
 
         self.set_max_objective(obj_max_returns(self.data, self.rebalance, True))
         return self.optimize(x0)

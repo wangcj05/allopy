@@ -22,12 +22,12 @@ def ctr_max_vol(data: OptData, max_vol: float, active_risk=False):
     return _ctr_max_vol
 
 
-def ctr_max_cvar(data: OptData, max_cvar: float, rebalance: bool, active_cvar=False):
+def ctr_max_cvar(data: OptData, max_cvar: float, rebalance: bool, percentile=5.0, active_cvar=False):
     """CVaR must be greater than max_cvar"""
 
     def _ctr_max_cvar(w):
         w = _active_weights(w, active_cvar)
-        return get_option("F.SCALE") * (max_cvar - data.cvar(w, rebalance))
+        return get_option("F.SCALE") * (max_cvar - data.cvar(w, rebalance, percentile))
 
     return _ctr_max_cvar
 

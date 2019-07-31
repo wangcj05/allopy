@@ -68,6 +68,7 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
     def maximize_returns(self,
                          max_vol: OptReal = None,
                          max_cvar: OptReal = None,
+                         percentile=5.0,
                          x0: OptArray = None,
                          tol=0.0,
                          initial_solution: Optional[str] = "random",
@@ -87,6 +88,10 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
 
         max_cvar: scalar, optional
             Maximum cvar_data allowed
+
+        percentile: float
+            The CVaR percentile value. This means to the expected shortfall will be calculated from values
+            below this threshold
 
         x0: ndarray
             Initial vector. Starting position for free variables
@@ -114,7 +119,7 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
             self.add_inequality_constraint(ctr_max_vol(self.data, max_vol), tol)
 
         if max_cvar is not None:
-            self.add_inequality_constraint(ctr_max_cvar(self.cvar_data, max_cvar, self.rebalance), tol)
+            self.add_inequality_constraint(ctr_max_cvar(self.cvar_data, max_cvar, self.rebalance, percentile), tol)
 
         self.set_max_objective(obj_max_returns(self.data, self.rebalance))
         return self.optimize(x0, initial_solution=initial_solution, random_state=random_state)
