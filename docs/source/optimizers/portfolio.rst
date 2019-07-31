@@ -9,4 +9,3 @@ For example, if you have a benchmark (beta) returns stream, 9 other asset classe
 
 .. autoclass:: allopy.optimize.PortfolioOptimizer
     :members:
-    :inherited-members:

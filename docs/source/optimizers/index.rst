@@ -19,6 +19,7 @@ Presently, **Continuous State Uncertainty optimizers** are not implemented in th
     :caption: Discrete State Uncertainty Optimizers
 
     Regret Optimizer <regret>
+    Portfolio Regret Optimizer <portfolio-regret>
 
 
 Algorithms

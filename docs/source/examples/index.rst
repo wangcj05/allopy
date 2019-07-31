@@ -5,5 +5,6 @@ A listing of the various ways we can use :code:`Allopy`. You should able to get 
 
 .. toctree::
 
-    BaseOptimizer (Simple) <BasicBaseOptimizer.ipynb>
+    Basic Optimizer Usage (Simple) <BasicBaseOptimizer.ipynb>
     Simulation and Optimization <Simulation and Optimization.ipynb>
+    Regret Optimization <Regret Optimization.ipynb>
