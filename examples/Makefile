@@ -1,0 +1,2 @@
+jupyter:
+	./start.bat
