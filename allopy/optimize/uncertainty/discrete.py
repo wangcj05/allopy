@@ -128,7 +128,7 @@ class DiscreteUncertaintyOptimizer(ABC):
         self._stop_val: Optional[float] = stopval
 
         # func
-        self._obj_fun: List[Callable[[np.ndarray], float]] = []
+        self._obj_funcs: List[Callable[[np.ndarray], float]] = []
 
         # constraint map
         self._hin: ConstraintFuncMap = {}
@@ -198,7 +198,7 @@ class DiscreteUncertaintyOptimizer(ABC):
             Own instance
         """
         self._validate_num_functions(functions)
-        self._obj_fun = functions
+        self._obj_funcs = functions
 
         self._max_or_min = 'maximize'
         self._stop_val = float('inf') if self._stop_val is None else self._stop_val
@@ -227,7 +227,7 @@ class DiscreteUncertaintyOptimizer(ABC):
             Own instance
         """
         self._validate_num_functions(functions)
-        self._obj_fun = functions
+        self._obj_funcs = functions
 
         self._max_or_min = 'minimize'
         self._stop_val = -float('inf') if self._stop_val is None else self._stop_val

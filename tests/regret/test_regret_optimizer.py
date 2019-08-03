@@ -13,8 +13,7 @@ def test_regret_optimizer(config, assets, scenarios, main_cubes, cvar_cubes):
     opt = RegretOptimizer(len(assets), len(scenarios), config.prob.as_array())
     opt.set_bounds(config.lb.as_array(), config.ub.as_array())
 
-    obj_funcs = []
-    constraint_funcs = []
+    obj_funcs, constraint_funcs = [], []
     for i, scenario in enumerate(scenarios):
         obj_funcs.append(obj_max_returns(main_cubes[i]))
         constraint_funcs.append(cvar_fun(cvar_cubes[i], config.cvar[scenario]))
@@ -25,7 +24,7 @@ def test_regret_optimizer(config, assets, scenarios, main_cubes, cvar_cubes):
     opt.optimize()
 
     assert_first_level_solution_equal_or_better(obj_funcs, opt.result.first_level_solutions, config.solutions)
-    assert_almost_equal(opt.result.props, config.proportions, 3)
+    assert_almost_equal(opt.result.proportions, config.proportions, 3)
 
 
 @pytest.mark.parametrize("config", [Test1])
@@ -37,7 +36,7 @@ def test_portfolio_regret_optimizer(config, assets, scenarios, main_cubes, cvar_
     opt.maximize_returns(main_cubes, cvar_cubes, max_cvar=config.cvar.as_array())
     obj_funcs = make_obj_max_returns(main_cubes, opt.rebalance)
     assert_first_level_solution_equal_or_better(obj_funcs, opt.result.first_level_solutions, config.solutions)
-    assert_regret_is_lower(opt.result.props,
+    assert_regret_is_lower(opt.result.proportions,
                            config.proportions,
                            opt.result.first_level_solutions,
                            obj_funcs,

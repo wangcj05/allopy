@@ -241,6 +241,8 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         if isinstance(random_state, int) and isinstance(initial_solution, str) and initial_solution.lower() == "random":
             np.random.seed(random_state)
 
+        self._validate_dist_func(dist_func)
+
         x0_first_level = self._validate_first_level_solution(x0_first_level)
 
         # optimal solution to each scenario. Each row represents a single scenario and
@@ -253,12 +255,16 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
             ) for i in range(self._num_scenarios)
         ])
 
-        if approx:
+        if np.isnan(solutions).any():
+            props = np.repeat(np.nan, self._num_scenarios) if approx else None
+            weights = np.repeat(np.nan, self._num_assets)
+        elif approx:
             props, weights = self._optimize_approx(x0_prop, solutions, dist_func, initial_solution)
         else:
             props, weights = self._optimize_actual(x0_prop, solutions, dist_func, initial_solution)
 
-        self._result.update(self._c_eps, self._hin, self._heq, self._min, self._meq, weights, props, solutions)
+        self._result.update(self._c_eps, self._hin, self._heq, self._min, self._meq, weights, props, solutions,
+                            self._obj_funcs)
 
         return weights
 
@@ -287,7 +293,7 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
     def _optimize_actual(self,
                          x0: OptArray,
                          solutions: np.ndarray,
-                         dist_func: Callable,
+                         dist_func: Callable[[np.ndarray], np.ndarray],
                          initial_solution: Optional[str] = None):
         """
         Runs the second step (regret minimization) using the actual weights as the decision variable
@@ -309,14 +315,12 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
             :code:`None` to disable. However, if disabled, the initial vector must be supplied. See notes on
             Initial Solution for more information
         """
-        f_values = np.array(self._obj_fun[i](s) for i, s in enumerate(solutions))
+        f_values = np.array(self._obj_funcs[i](s) for i, s in enumerate(solutions))
 
         def regret(w):
-            curr_f_values = np.array([f(w) for f in self._obj_fun])
-            cost = f_values - curr_f_values
-            if callable(dist_func):
-                cost = np.asarray(dist_func(cost))
-            return sum(self.prob * cost)
+            curr_f_values = np.array([f(w) for f in self._obj_funcs])
+            cost = dist_func(f_values - curr_f_values)
+            return 100 * sum(self.prob * cost)
 
         model = BaseOptimizer(self._num_assets)
         model.set_min_objective(regret)
@@ -328,13 +332,13 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
                 set_constraint(c, self._c_eps)
 
         return None, self._optimize(model,
-                                    solutions.mean(0) if x0 is None else x0,
+                                    self.prob @ solutions if x0 is None else x0,
                                     initial_solution)
 
     def _optimize_approx(self,
                          x0: OptArray,
                          solutions: np.ndarray,
-                         dist_func: Callable,
+                         dist_func: Callable[[np.ndarray], np.ndarray],
                          initial_solution: Optional[str] = None):
         """
         Runs the second step (regret minimization) where the decision variable
@@ -359,12 +363,11 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         """
 
         # weighted function values for each scenario
-        f_values: np.ndarray = np.array([self._obj_fun[i](s) for i, s in enumerate(solutions)])
+        f_values: np.ndarray = np.array([self._obj_funcs[i](s) for i, s in enumerate(solutions)])
 
         def regret(p):
-            cost = f_values - np.array([f(p @ solutions) for f in self._obj_fun])
-            if callable(dist_func):
-                cost = np.asarray(dist_func(cost))
+            cost = f_values - np.array([f(p @ solutions) for f in self._obj_funcs])
+            cost = dist_func(cost)
             return 100 * sum(self.prob * cost)
 
         model = BaseOptimizer(self._num_scenarios)
@@ -373,7 +376,7 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         model.set_bounds(0, 1)
 
         proportions = self._optimize(model,
-                                     np.eye(self._num_scenarios).mean(0) if x0 is None else x0,
+                                     self.prob if x0 is None else x0,
                                      initial_solution)
         return proportions, proportions @ solutions
 
@@ -458,15 +461,21 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
                 set_constraint(c[index], self._c_eps)
 
         # sets up the objective function
-        assert self._max_or_min in ('maximize', 'minimize') and len(self._obj_fun) == self._num_scenarios, \
+        assert self._max_or_min in ('maximize', 'minimize') and len(self._obj_funcs) == self._num_scenarios, \
             "Objective function is not set yet. Use the .set_max_objective() or .set_min_objective() methods to do so"
 
         if self._max_or_min == "maximize":
-            model.set_max_objective(self._obj_fun[index])
+            model.set_max_objective(self._obj_funcs[index])
         else:
-            model.set_min_objective(self._obj_fun[index])
+            model.set_min_objective(self._obj_funcs[index])
 
         return model
+
+    def _validate_dist_func(self, dist_func):
+        assert callable(dist_func), "dist_func must be a callable function"
+
+        assert isinstance(dist_func(np.random.uniform(size=self._num_assets)), np.ndarray), \
+            "dist_func must map a vector to a vector"
 
     def _validate_first_level_solution(self, x0_first_level: Optional[Union[List[OptArray], np.ndarray]]):
         if x0_first_level is None:
