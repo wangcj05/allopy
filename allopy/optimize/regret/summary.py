@@ -11,13 +11,14 @@ class RegretSummary(Summary):
 
         self.add_title("Regret Optimizer")
 
-        if self.result.sol is None:
+        if self.result.solution is None:
             self.add_text("Problem has not been optimized yet")
             return
 
         self._add_first_level_solutions()
         self._add_scenario_proportions()
         self._add_final_weights()
+        self._add_regret_summary()
 
         self.add_text("Optimization completed successfully")
 
@@ -28,11 +29,14 @@ class RegretSummary(Summary):
         )
 
     def _add_final_weights(self):
-        self.add_df(pd.DataFrame({"Weight": self.result.sol}, self.result.asset_names))
+        self.add_df(pd.DataFrame({"Weight": self.result.solution}, self.result.asset_names))
 
     def _add_scenario_proportions(self):
-        if self.result.props is not None:
+        if self.result.proportions is not None:
             self.add_df(pd.DataFrame({
                 "Scenario": self.result.scenario_names,
-                "Proportion (%)": self.result.props.round(4) * 100
+                "Proportion (%)": self.result.proportions.round(4) * 100
             }))
+
+    def _add_regret_summary(self):
+        self.add_df(self.result.regret_table)

@@ -13,7 +13,7 @@ class Result:
 
         self.tight_constraint: List[str] = []
         self.violations: List[str] = []
-        self.sol: Optional[np.ndarray] = None
+        self.solution: Optional[np.ndarray] = None
 
         self._asset_names = [f"Asset_{i + 1}" for i in range(num_assets)]
         self._scenario_names: List[str] = [f"Scenario_{i + 1}" for i in range(num_scenarios)]
@@ -82,4 +82,4 @@ class Result:
                 if abs(f(sol)) > eps:
                     self.violations.append(f"{name}-{i}")
 
-        self.sol = sol
+        self.solution = sol
