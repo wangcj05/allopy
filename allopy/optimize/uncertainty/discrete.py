@@ -609,23 +609,17 @@ class DiscreteUncertaintyOptimizer(ABC):
         return self
 
     @property
-    def solution(self) -> np.ndarray:
+    @abstractmethod
+    def solution(self):
         """
         Returns the solution to the optimization problem
-
-        Returns
-        -------
-        np.ndarray
-            Numpy array of the solution
 
         Raises
         ------
         RuntimeError
             Model is not optimized yet.
         """
-        if self._solution is None:
-            raise RuntimeError("Model has not been optimized yet")
-        return self._solution
+        raise NotImplementedError
 
     @abstractmethod
     def optimize(self, x0: OptArray):
@@ -641,7 +635,7 @@ class DiscreteUncertaintyOptimizer(ABC):
 
     def _validate_num_functions(self, funcs: List):
         error_msg = f"Number of functions do not match. Functions given: {len(funcs)}. " \
-            f"Functions expected: {self._num_scenarios}"
+                    f"Functions expected: {self._num_scenarios}"
         assert len(funcs) == self._num_scenarios, error_msg
 
     @staticmethod

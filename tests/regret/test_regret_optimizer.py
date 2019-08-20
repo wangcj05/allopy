@@ -23,7 +23,7 @@ def test_regret_optimizer(config, assets, scenarios, main_cubes, cvar_cubes):
     opt.add_equality_constraint([sum_to_1] * len(scenarios))
     opt.optimize()
 
-    assert_first_level_solution_equal_or_better(obj_funcs, opt.result.first_level_solutions, config.solutions)
+    assert_scenario_solution_equal_or_better(obj_funcs, opt.result.scenario_solutions, config.solutions)
     assert_almost_equal(opt.result.proportions, config.proportions, 3)
 
 
@@ -35,15 +35,15 @@ def test_portfolio_regret_optimizer(config, assets, scenarios, main_cubes, cvar_
     opt.set_bounds(config.lb.as_array(), config.ub.as_array())
     opt.maximize_returns(main_cubes, cvar_cubes, max_cvar=config.cvar.as_array())
     obj_funcs = make_obj_max_returns(main_cubes, opt.rebalance)
-    assert_first_level_solution_equal_or_better(obj_funcs, opt.result.first_level_solutions, config.solutions)
-    assert_regret_is_lower(opt.result.proportions,
+    assert_scenario_solution_equal_or_better(obj_funcs, opt.solution.scenario_optimal, config.solutions)
+    assert_regret_is_lower(opt.solution.proportions,
                            config.proportions,
-                           opt.result.first_level_solutions,
+                           opt.solution.scenario_optimal,
                            obj_funcs,
                            config.prob.as_array())
 
 
-def assert_first_level_solution_equal_or_better(obj_funcs, solutions, expected):
+def assert_scenario_solution_equal_or_better(obj_funcs, solutions, expected):
     results = []
     for f, w, t, in zip(obj_funcs, solutions, expected):
         results.append(round(f(w) - f(t), 2) >= 0)

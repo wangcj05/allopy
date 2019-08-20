@@ -15,16 +15,16 @@ class RegretSummary(Summary):
             self.add_text("Problem has not been optimized yet")
             return
 
-        self._add_first_level_solutions()
+        self._add_scenario_optimal_weights()
         self._add_scenario_proportions()
         self._add_final_weights()
         self._add_regret_summary()
 
         self.add_text("Optimization completed successfully")
 
-    def _add_first_level_solutions(self):
+    def _add_scenario_optimal_weights(self):
         self.add_df(pd.DataFrame(
-            {s: w for s, w in zip(self.result.scenario_names, self.result.first_level_solutions)},
+            {s: w for s, w in zip(self.result.scenario_names, self.result.scenario_solutions)},
             self.result.asset_names)
         )
 

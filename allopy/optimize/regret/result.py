@@ -10,7 +10,7 @@ class RegretResult(Result):
     def __init__(self, num_assets, num_scenarios):
         super().__init__(num_assets, num_scenarios)
         self.proportions: Optional[np.ndarray] = None
-        self.first_level_solutions: Optional[np.ndarray] = None
+        self.scenario_solutions: Optional[np.ndarray] = None
         self._regret_table: Optional[pd.DataFrame] = None
 
     # noinspection PyMethodOverriding
@@ -27,7 +27,7 @@ class RegretResult(Result):
         super().update(eps, hin, heq, min, meq, sol)
 
         self.proportions = np.asarray(proportions)
-        self.first_level_solutions = np.asarray(solutions)
+        self.scenario_solutions = np.asarray(solutions)
         self._form_regret_table(obj_funcs)
 
     def _form_regret_table(self, obj_funcs: List[Callable[[np.ndarray, np.ndarray], float]]):
@@ -35,7 +35,7 @@ class RegretResult(Result):
         # Last column, "optimal" regret solution in each of the scenario
         objective_fn_values = np.array([
             [f(s) for f in obj_funcs]
-            for s in [*self.first_level_solutions, self.solution]
+            for s in [*self.scenario_solutions, self.solution]
         ])
 
         self._regret_table = pd.DataFrame([

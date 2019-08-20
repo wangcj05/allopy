@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Callable, List, Optional, Union
 
 import nlopt as nl
@@ -263,6 +264,8 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         else:
             props, weights = self._optimize_actual(x0_prop, solutions, dist_func, initial_solution)
 
+        self._solution = RegretOptimizerSolution(weights, solutions, props)
+
         self._result.update(self._c_eps, self._hin, self._heq, self._min, self._meq, weights, props, solutions,
                             self._obj_funcs)
 
@@ -429,6 +432,12 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
 
         self._result.scenario_names = value
 
+    @property
+    def solution(self) -> "RegretOptimizerSolution":
+        if self._solution is None:
+            raise RuntimeError("Model has not been optimized yet")
+        return self._solution
+
     def summary(self):
         return RegretSummary(self._result)
 
@@ -485,3 +494,10 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
             "Initial first level solution data must match number of scenarios"
 
         return x0_first_level
+
+
+@dataclass
+class RegretOptimizerSolution:
+    regret_optimal: np.ndarray
+    scenario_optimal: np.ndarray
+    proportions: Optional[np.ndarray] = None
