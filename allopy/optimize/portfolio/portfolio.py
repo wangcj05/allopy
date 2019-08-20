@@ -15,7 +15,7 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
                  algorithm=LD_SLSQP,
                  cvar_data: Optional[Union[np.ndarray, OptData]] = None,
                  rebalance=False,
-                 time_unit: int = 'quarterly',
+                 time_unit='quarterly',
                  sum_to_1=True,
                  *args,
                  **kwargs):
