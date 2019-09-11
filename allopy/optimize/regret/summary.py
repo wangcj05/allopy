@@ -18,7 +18,6 @@ class RegretSummary(Summary):
         self._add_scenario_optimal_weights()
         self._add_scenario_proportions()
         self._add_final_weights()
-        self._add_regret_summary()
 
         self.add_text("Optimization completed successfully")
 
@@ -37,6 +36,3 @@ class RegretSummary(Summary):
                 "Scenario": self.result.scenario_names,
                 "Proportion (%)": self.result.proportions.round(4) * 100
             }))
-
-    def _add_regret_summary(self):
-        self.add_df(self.result.regret_table)
