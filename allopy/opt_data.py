@@ -457,11 +457,14 @@ class OptData(np.ndarray):
             start, stop = 0, start
 
         assert isinstance(start, int) and isinstance(stop, int), "Indices must be integers"
-        assert start <= stop, "Start index must be less or equal to stop index"
+        assert start < stop, "Start index must be less or equal to stop index"
+
+        if start == stop:
+            stop += 1
 
         data: OptData = deepcopy(self)
-        data = data[..., start] if start == stop else data[..., start:stop]
-        data.n_assets = stop + 1 - start
+        data = data[..., start:stop]
+        data.n_assets = stop - start
 
         return data
 
