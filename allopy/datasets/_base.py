@@ -1,42 +1,38 @@
-import os
+import pathlib
 
-import numpy as np
-import pandas as pd
-
-__all__ = ["load_index", "load_monte_carlo"]
+import requests
 
 
-def _load_file(fn: str):
-    return os.path.join(os.path.dirname(__file__), 'data', fn)
+def filepath(fn: str, download: bool):
+    return FileHandler(fn, download).filepath
 
 
-def load_index() -> pd.DataFrame:
-    """
-    Dataset contains the index value of 7 asset classes from 01 Jan 1985 to 01 Oct 2017.
+class FileHandler:
+    data_home = pathlib.Path.home().joinpath(".allopy", "data")
 
-    This dataset is usually used only for demonstration purposes. As such, the values have been
-    fudged slightly.
+    def __init__(self, name: str, download: bool):
+        self.name = name
 
-    Returns
-    -------
-    DataFrame
-        A data frame containing the index of the 7 policy asset classes
-    """
-    fp = _load_file('policy_index.csv')
+        if not self.data_home.exists():
+            self.data_home.mkdir(777, True, exist_ok=True)
 
-    return pd.read_csv(fp, parse_dates=[0], index_col=0)
+        self._fp = self.data_home.joinpath(name)
+        if not self._fp.exists() or download:
+            self._download_file()
 
+    @property
+    def filepath(self):
+        return self._fp.as_posix()
 
-def load_monte_carlo() -> np.ndarray:
-    """
-    Loads a data set containing a mock Monte Carlo simulation of asset class returns.
+    @property
+    def file_url(self):
+        return f"https://github.com/DanielBok/allopy/blob/master/allopy/datasets/data/{self.name}?raw=true"
 
-    The Monte Carlo tensor has axis represents time, trials and asset respectively. Its shape is
-    80 x 10000 x 9 meaning there are 80 time periods over 10000 trials and 9 asset classes.
+    def _download_file(self):
+        print("Downloading required file from source")
 
-    Returns
-    -------
-    ndarray
-        A Monte Carlo tensor
-    """
-    return np.load(_load_file('monte_carlo.npy'))
+        with requests.get(self.file_url) as r:
+            with open(self.filepath, 'wb') as f:
+                f.write(r.content)
+
+        print("Download complete")

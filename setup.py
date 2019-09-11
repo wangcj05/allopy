@@ -12,8 +12,9 @@ install_requires = [
     'muarch >=0.1',
     'numpy >=1.15',
     'nlopt >=2.6',
+    'requests',
     'scipy >=1.1',
-    "statsmodels >=0.10",
+    'statsmodels >=0.10',
     'pandas >=0.24'
 ]
 
