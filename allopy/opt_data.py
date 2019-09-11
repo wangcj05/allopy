@@ -465,6 +465,7 @@ class OptData(np.ndarray):
         data: OptData = deepcopy(self)
         data = data[..., start:stop]
         data.n_assets = stop - start
+        data.cov_mat = data.cov_mat[start:stop, start:stop]
 
         return data
 
