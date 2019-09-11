@@ -434,6 +434,37 @@ class OptData(np.ndarray):
         self._cov_mat = cov_mat
         return self
 
+    def take_assets(self, start: int, stop: Optional[int] = None):
+        """
+        Returns a new :code:`OptData` instance from the specified start and stop index
+
+        Parameters
+        ----------
+        start: int
+            Starting index. If the stop index is not specified, the start index will be 0 and this value will become
+            the stop index. Akin to the :code:`range` function.
+
+        stop: int
+            Stopping index
+
+        Returns
+        -------
+        OptData
+            A new OptData instance.
+        """
+
+        if stop is None:
+            start, stop = 0, start
+
+        assert isinstance(start, int) and isinstance(stop, int), "Indices must be integers"
+        assert start <= stop, "Start index must be less or equal to stop index"
+
+        data: OptData = deepcopy(self)
+        data = data[..., start] if start == stop else data[..., start:stop]
+        data.n_assets = stop + 1 - start
+
+        return data
+
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """
         Overwrote the default :code:`ufunc` function so that we can get :class:`OptData` if calculated data is
