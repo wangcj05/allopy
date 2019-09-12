@@ -168,7 +168,7 @@ class PortfolioRegretOptimizer(RegretOptimizer):
                          x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
                          x0_prop: OptArray = None,
                          approx=True,
-                         dist_func: Callable[[np.ndarray], np.ndarray] = lambda x: x ** 2,
+                         dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc] = np.square,
                          initial_solution: Optional[str] = "random",
                          random_state: Optional[int] = None) -> np.ndarray:
         """
@@ -249,7 +249,7 @@ class PortfolioRegretOptimizer(RegretOptimizer):
                             x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
                             x0_prop: OptArray = None,
                             approx=True,
-                            dist_func: Callable[[np.ndarray], np.ndarray] = lambda x: x ** 2,
+                            dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc] = np.square,
                             initial_solution: Optional[str] = "random",
                             random_state: Optional[int] = None) -> np.ndarray:
         """
@@ -312,7 +312,7 @@ class PortfolioRegretOptimizer(RegretOptimizer):
                       x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
                       x0_prop: OptArray = None,
                       approx=True,
-                      dist_func: Callable[[np.ndarray], np.ndarray] = lambda x: x ** 2,
+                      dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc] = np.square,
                       initial_solution: Optional[str] = "random",
                       random_state: Optional[int] = None) -> np.ndarray:
         """
@@ -377,7 +377,7 @@ class PortfolioRegretOptimizer(RegretOptimizer):
                               x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
                               x0_prop: OptArray = None,
                               approx=True,
-                              dist_func: Callable[[np.ndarray], np.ndarray] = lambda x: x ** 2,
+                              dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc] = np.square,
                               initial_solution: Optional[str] = "random",
                               random_state: Optional[int] = None) -> np.ndarray:
         """

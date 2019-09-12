@@ -155,7 +155,7 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
                  x0_prop: OptArray = None,
                  initial_solution: Optional[str] = "random",
                  approx=True,
-                 dist_func: Callable[[np.ndarray], np.ndarray] = lambda x: x ** 2,
+                 dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc] = np.square,
                  random_state: Optional[int] = None):
         r"""
         Finds the minimal regret solution across the range of scenarios
@@ -296,7 +296,7 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
     def _optimize_actual(self,
                          x0: OptArray,
                          solutions: np.ndarray,
-                         dist_func: Callable[[np.ndarray], np.ndarray],
+                         dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc],
                          initial_solution: Optional[str] = None):
         """
         Runs the second step (regret minimization) using the actual weights as the decision variable
@@ -341,7 +341,7 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
     def _optimize_approx(self,
                          x0: OptArray,
                          solutions: np.ndarray,
-                         dist_func: Callable[[np.ndarray], np.ndarray],
+                         dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc],
                          initial_solution: Optional[str] = None):
         """
         Runs the second step (regret minimization) where the decision variable
