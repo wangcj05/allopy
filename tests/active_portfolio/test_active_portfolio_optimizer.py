@@ -223,7 +223,7 @@ def test_min_te_st_active_ret(horizon, overweight, bounds, sim_ret, ineq_cstr, e
 
     min_ret = 0.01
 
-    sol = opt.minimize_tracking_error(min_ret, True)
+    sol = opt.minimize_tracking_error(min_ret)
 
     assert_equal_or_better_solution(tracking_error(data),
                                     sol,
@@ -270,7 +270,7 @@ def test_min_cvar_st_active_ret(horizon, overweight, bounds, sim_ret, ineq_cstr,
 
     min_ret = 0.01
 
-    sol = opt.minimize_cvar(min_ret, True)
+    sol = opt.minimize_cvar(min_ret, as_active_return=True)
 
     assert_equal_or_better_solution(cvar(data),
                                     sol,

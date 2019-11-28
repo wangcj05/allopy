@@ -3,10 +3,11 @@ from typing import Optional, Union
 import numpy as np
 
 from allopy import OptData
+from allopy.optimize.algorithms import LD_SLSQP
 from allopy.types import OptArray, OptReal
-from .abstract import AbstractPortfolioOptimizer
-from .obj_ctr import *
-from ..algorithms import LD_SLSQP
+from .constraints import ConstraintBuilder
+from .objectives import ObjectiveBuilder
+from ..abstract import AbstractPortfolioOptimizer
 
 
 class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
@@ -22,14 +23,12 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         The ActivePortfolioOptimizer houses several common pre-specified optimization routines.
 
         ActivePortfolioOptimizer assumes that the optimization model has no uncertainty. That is, the
-        portfolio is expected to undergo a single fixed scenario in the future. By default, the
-        ActivePortfolioOptimizer will automatically add an equality constraint that forces the portfolio
-        weights to sum to 1.
+        portfolio is expected to undergo a single fixed scenario in the future.
 
         Notes
         -----
         ActivePortfolioOptimizer is a special case of the PortfolioOptimizer where the goal is to determine
-        the best mix of of the portfolio relative to ba benchmark. By convention, the first asset should of
+        the best mix of of the portfolio relative to ba benchmark. By convention, the first asset of
         the data is the benchmark returns stream. The remaining returns stream is then the over or under
         performance of the returns over the benchmark. In this way, the optimization has an intuitive meaning
         of allocating resources whilst taking account
@@ -74,9 +73,11 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         :class:`OptData`: Optimizer data wrapper
         """
         super().__init__(data, algorithm, cvar_data, rebalance, time_unit, False, *args, **kwargs)
+        self._objectives = ObjectiveBuilder(self.data, self.cvar_data, rebalance)
+        self._constraints = ConstraintBuilder(self.data, self.cvar_data, rebalance)
 
-    def maximize_eva(self, max_te: OptReal = None, max_cvar: OptReal = None, percentile=5.0, x0: OptArray = None,
-                     active_cvar=False, tol=0.0) -> np.ndarray:
+    def maximize_eva(self, max_vol: OptReal = None, max_cvar: OptReal = None, percentile=5.0, x0: OptArray = None, *,
+                     as_tracking_error=True, as_active_cvar=False, tol=0.0) -> np.ndarray:
         """
         Optimizes the expected value added of the portfolio subject to max tracking error and/or cvar constraint.
         At least one of the tracking error or cvar constraint must be defined.
@@ -87,7 +88,7 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
 
         Parameters
         ----------
-        max_te: float, optional
+        max_vol: float, optional
             Maximum tracking error allowed
 
         max_cvar: float, optional
@@ -100,9 +101,14 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         x0: ndarray
             Initial vector. Starting position for free variables
 
-        active_cvar: bool
-            If True, calculates the CVaR of only the active portfolio of the portfolio. If False, calculates the
-            CVaR of the entire portfolio.
+        as_active_cvar: bool
+            If True, the cvar constraint is calculated using the active portion of the weights. That is, the
+            first value is forced to 0. If False, the cvar constraint is calculated using the entire weight vector.
+
+        as_tracking_error: bool
+            If True, the volatility constraint is calculated using the active portion of the weights. That is, the
+            first value is forced to 0. If False, the volatility constraint is calculated using the entire weight
+            vector. This is also known as tracking error.
 
         tol: float
             A tolerance for the constraints in judging feasibility for the purposes of stopping the optimization
@@ -112,23 +118,19 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         ndarray
             Optimal weights
         """
-        assert not (max_te is None and max_cvar is None), "If maximizing EVA subject to some sort of TE/CVaR " \
-                                                          "constraint, we must at least specify max CVaR or max TE"
+        assert not (max_vol is None and max_cvar is None), \
+            "If maximizing EVA subject to some sort of TE/CVaR constraint, we must at least specify max CVaR or max TE"
 
-        if max_te is not None:
-            self.add_inequality_constraint(ctr_max_vol(self.data, max_te, True), tol)
+        if max_vol is not None:
+            self.add_inequality_constraint(self._constraints.max_vol(max_vol, as_tracking_error), tol)
 
         if max_cvar is not None:
-            self.add_inequality_constraint(ctr_max_cvar(self.cvar_data,
-                                                        max_cvar,
-                                                        self.rebalance,
-                                                        percentile,
-                                                        active_cvar))
+            self.add_inequality_constraint(self._constraints.max_cvar(max_cvar, percentile, as_active_cvar))
 
-        self.set_max_objective(obj_max_returns(self.data, self.rebalance, True))
+        self.set_max_objective(self._objectives.max_returns)
         return self.optimize(x0)
 
-    def minimize_tracking_error(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None,
+    def minimize_tracking_error(self, min_ret: OptReal = None, x0: OptArray = None, *, as_active_return=False,
                                 tol=0.0) -> np.ndarray:
         """
         Minimizes the tracking error of the portfolio
@@ -141,14 +143,14 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         min_ret: float, optional
             The minimum returns required for the portfolio
 
-        use_active_return: boolean, optional
-            If True, return is calculated as active return, that is the first (passive) weight will be set to 0.
-            Otherwise, use the total return. Defaults to True. This is important in that the min_ret parameter
-            should reflect pure alpha as all the beta in the passive have been stripped away when this argument
-            is True.
-
         x0: ndarray
             Initial vector. Starting position for free variables
+
+
+        as_active_return: boolean, optional
+            If True, the returns constraint is calculated using the active portion of the weights. That is, the
+            first value is forced to 0. If False, the returns constraint is calculated using the entire weight
+            vector.
 
         tol: float
             A tolerance for the constraints in judging feasibility for the purposes of stopping the optimization
@@ -159,13 +161,49 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
             Optimal weights
         """
         if min_ret is not None:
-            self.add_inequality_constraint(ctr_min_returns(self.data, min_ret, self.rebalance, use_active_return), tol)
+            self.add_inequality_constraint(self._constraints.min_returns(min_ret, as_active_return), tol)
 
-        self.set_min_objective(obj_min_vol(self.data, as_tracking_error=True))
+        self.set_min_objective(self._objectives.min_volatility(is_tracking_error=True))
         return self.optimize(x0)
 
-    def minimize_cvar(self, min_ret: OptReal = None, use_active_return=False, x0: OptArray = None,
-                      tol=0.0) -> np.ndarray:
+    def minimize_volatility(self, min_ret: OptReal = None, x0: OptArray = None, *, as_active_return=False,
+                            tol=0.0) -> np.ndarray:
+        """
+        Minimizes the volatility of the portfolio
+
+        If the `min_ret` is specified, the optimizer will search for an optimal portfolio where the returns are
+        at least as large as the value specified (if possible).
+
+        Parameters
+        ----------
+        min_ret: float, optional
+            The minimum returns required for the portfolio
+
+        x0: ndarray
+            Initial vector. Starting position for free variables
+
+
+        as_active_return: boolean, optional
+            If True, the returns constraint is calculated using the active portion of the weights. That is, the
+            first value is forced to 0. If False, the returns constraint is calculated using the entire weight
+            vector.
+
+        tol: float
+            A tolerance for the constraints in judging feasibility for the purposes of stopping the optimization
+
+        Returns
+        -------
+        ndarray
+            Optimal weights
+        """
+        if min_ret is not None:
+            self.add_inequality_constraint(self._constraints.min_returns(min_ret, as_active_return), tol)
+
+        self.set_min_objective(self._objectives.min_volatility(is_tracking_error=False))
+        return self.optimize(x0)
+
+    def minimize_cvar(self, min_ret: OptReal = None, x0: OptArray = None, *, as_active_cvar=False,
+                      as_active_return=False, tol=0.0) -> np.ndarray:
         """
         Minimizes the conditional value at risk of the portfolio. The present implementation actually minimizes the
         expected shortfall.
@@ -178,14 +216,17 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         min_ret: float, optional
             The minimum returns required for the portfolio
 
-        use_active_return: boolean, optional
-            If True, return is calculated as active return, that is the first (passive) weight will be set to 0.
-            Otherwise, use the total return. Defaults to True. This is important in that the min_ret parameter
-            should reflect pure alpha as all the beta in the passive have been stripped away when this argument
-            is True.
-
         x0: ndarray
             Initial vector. Starting position for free variables
+
+        as_active_cvar: bool, optional
+            If True, minimizes the active cvar instead of the entire portfolio cvar. If False, minimizes the entire
+            portfolio's cvar
+
+        as_active_return: bool, optional
+            If True, the returns constraint is calculated using the active portion of the weights. That is, the
+            first value is forced to 0. If False, the returns constraint is calculated using the entire weight
+            vector.
 
         tol: float
             A tolerance for the constraints in judging feasibility for the purposes of stopping the optimization
@@ -196,9 +237,9 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
             Optimal weights
         """
         if min_ret is not None:
-            self.add_inequality_constraint(ctr_min_returns(self.data, min_ret, self.rebalance, use_active_return), tol)
+            self.add_inequality_constraint(self._constraints.min_returns(min_ret, as_active_return), tol)
 
-        self.set_max_objective(obj_max_cvar(self.data, self.rebalance))
+        self.set_max_objective(self._objectives.max_cvar(as_active_cvar))
         return self.optimize(x0)
 
     def maximize_info_ratio(self, x0: OptArray = None) -> np.ndarray:
@@ -215,5 +256,5 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         ndarray
             Optimal weights
         """
-        self.set_max_objective(obj_max_sharpe_ratio(self.data, self.rebalance, as_info_ratio=True))
+        self.set_max_objective(self._objectives.max_info_ratio)
         return self.optimize(x0)
