@@ -6,7 +6,6 @@ from nlopt import RoundoffLimited
 
 from allopy import OptData
 from allopy.types import OptArray
-from .obj_ctr import *
 from ..algorithms import LD_SLSQP
 from ..base import BaseOptimizer
 
@@ -89,7 +88,7 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
         self.max_attempts = kwargs.get('max_attempts', 100)
 
         if sum_to_1:
-            self.add_equality_constraint(sum_equal_1)
+            self.add_equality_constraint(lambda w: sum(w) - 1)
 
     def adjust_returns(self, eva: OptArray = None, vol: OptArray = None):
         self.data: OptData = self.data.calibrate_data(eva, vol)

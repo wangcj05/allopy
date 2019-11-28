@@ -3,10 +3,11 @@ from typing import Optional, Union
 import numpy as np
 
 from allopy import OptData
+from allopy.optimize.algorithms import LD_SLSQP
 from allopy.types import OptArray, OptReal
-from .abstract import AbstractPortfolioOptimizer
-from .obj_ctr import *
-from ..algorithms import LD_SLSQP
+from .constraints import ConstraintBuilder
+from .objectives import ObjectiveBuilder
+from ..abstract import AbstractPortfolioOptimizer
 
 
 class PortfolioOptimizer(AbstractPortfolioOptimizer):
@@ -64,12 +65,15 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
         :class:`OptData`: Optimizer data wrapper
         """
         super().__init__(data, algorithm, cvar_data, rebalance, time_unit, sum_to_1, *args, **kwargs)
+        self._objectives = ObjectiveBuilder(self.data, self.cvar_data, rebalance)
+        self._constraints = ConstraintBuilder(self.data, self.cvar_data, rebalance)
 
     def maximize_returns(self,
                          max_vol: OptReal = None,
                          max_cvar: OptReal = None,
-                         percentile=5.0,
                          x0: OptArray = None,
+                         *,
+                         percentile=5.0,
                          tol=0.0,
                          initial_solution: Optional[str] = "random",
                          random_state: Optional[int] = None) -> np.ndarray:
@@ -89,12 +93,12 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
         max_cvar: scalar, optional
             Maximum cvar_data allowed
 
+        x0: ndarray
+            Initial vector. Starting position for free variables
+
         percentile: float
             The CVaR percentile value. This means to the expected shortfall will be calculated from values
             below this threshold
-
-        x0: ndarray
-            Initial vector. Starting position for free variables
 
         tol: float
             A tolerance for the constraints in judging feasibility for the purposes of stopping the optimization
@@ -116,17 +120,18 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
                                                            "constraint, we must at least specify max CVaR or max vol"
 
         if max_vol is not None:
-            self.add_inequality_constraint(ctr_max_vol(self.data, max_vol), tol)
+            self.add_inequality_constraint(self._constraints.max_vol(max_vol), tol)
 
         if max_cvar is not None:
-            self.add_inequality_constraint(ctr_max_cvar(self.cvar_data, max_cvar, self.rebalance, percentile), tol)
+            self.add_inequality_constraint(self._constraints.max_cvar(max_cvar, percentile), tol)
 
-        self.set_max_objective(obj_max_returns(self.data, self.rebalance))
+        self.set_max_objective(self._objectives.max_returns)
         return self.optimize(x0, initial_solution=initial_solution, random_state=random_state)
 
     def minimize_volatility(self,
                             min_ret: OptReal = None,
                             x0: OptArray = None,
+                            *,
                             tol=0.0,
                             initial_solution: Optional[str] = "random",
                             random_state: Optional[int] = None) -> np.ndarray:
@@ -160,20 +165,22 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
             Optimal weights
         """
         if min_ret is not None:
-            self.add_inequality_constraint(ctr_min_returns(self.data, min_ret, self.rebalance), tol)
+            self.add_inequality_constraint(self._constraints.min_returns(min_ret), tol)
 
-        self.set_min_objective(obj_min_vol(self.data))
+        self.set_min_objective(self._objectives.min_vol)
         return self.optimize(x0, initial_solution=initial_solution, random_state=random_state)
 
     def minimize_cvar(self,
                       min_ret: OptReal = None,
                       x0: OptArray = None,
+                      *,
                       tol=0.0,
                       initial_solution: Optional[str] = "random",
                       random_state: Optional[int] = None) -> np.ndarray:
         """
-        Minimizes the conditional value at risk of the portfolio. The present implementation actually minimizes the
-        expected shortfall.
+        Maximizes the conditional value at risk of the portfolio. The present implementation actually minimizes the
+        expected shortfall. Maximizing this value means you stand to lose less (or even make more) money during
+        bad times
 
         If the `min_ret` is specified, the optimizer will search for an optimal portfolio where the returns are at least
         as large as the value specified (if possible).
@@ -202,13 +209,14 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
             Optimal weights
         """
         if min_ret is not None:
-            self.add_inequality_constraint(ctr_min_returns(self.data, min_ret, self.rebalance), tol)
+            self.add_inequality_constraint(self._constraints.min_returns(min_ret), tol)
 
-        self.set_max_objective(obj_max_cvar(self.data, self.rebalance))
+        self.set_max_objective(self._objectives.max_cvar)
         return self.optimize(x0, initial_solution=initial_solution, random_state=random_state)
 
     def maximize_sharpe_ratio(self,
                               x0: OptArray = None,
+                              *,
                               initial_solution: Optional[str] = "random",
                               random_state: Optional[int] = None) -> np.ndarray:
         """
@@ -238,5 +246,5 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
         ndarray
             Optimal weights
         """
-        self.set_max_objective(obj_max_sharpe_ratio(self.data, self.rebalance))
+        self.set_max_objective(self._objectives.max_sharpe_ratio)
         return self.optimize(x0, initial_solution=initial_solution, random_state=random_state)
