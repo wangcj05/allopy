@@ -72,7 +72,7 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         :class:`BaseOptimizer`: Base Optimizer
         :class:`OptData`: Optimizer data wrapper
         """
-        super().__init__(data, algorithm, cvar_data, rebalance, time_unit, False, *args, **kwargs)
+        super().__init__(data, algorithm, cvar_data, rebalance, time_unit, sum_to_1=False, *args, **kwargs)
         self._objectives = ObjectiveBuilder(self.data, self.cvar_data, rebalance)
         self._constraints = ConstraintBuilder(self.data, self.cvar_data, rebalance)
 

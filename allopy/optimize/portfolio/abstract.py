@@ -83,9 +83,7 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
         self.cvar_data: OptData = cvar_data
 
         self._rebalance = rebalance
-
-        self._max_attempts = 0
-        self.max_attempts = kwargs.get('max_attempts', 100)
+        self._max_attempts = kwargs.get('max_attempts', 100)
 
         if sum_to_1:
             self.add_equality_constraint(lambda w: sum(w) - 1)

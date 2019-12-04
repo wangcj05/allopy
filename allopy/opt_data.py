@@ -129,7 +129,7 @@ class OptData(np.ndarray):
 
         return data.copy() if copy else data
 
-    def alter_frequency(self, to='quarter'):
+    def alter_frequency(self, to: Union[int, str]):
         """
         Coalesces a the 3D tensor to a lower frequency.
 
@@ -647,7 +647,7 @@ def alter_frequency(data, from_='month', to_='quarter'):
     if to_ == from_:
         return data
 
-    assert to_ > from_, "Cannot extend data from lower to higher frequency. For example, we " \
+    assert from_ > to_, "Cannot extend data from lower to higher frequency. For example, we " \
                         "cannot go from yearly data to monthly data. How to fill anything in between?"
 
     t, n, s = data.shape
