@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Optional, Union
+from typing import Callable, Iterable, Optional, Union
 
 import nlopt as nl
 import numpy as np
@@ -56,7 +56,9 @@ class BaseOptimizer:
         self._eps = get_option('EPS.STEP')
         self._c_eps = get_option('EPS.CONSTRAINT')
         self.set_xtol_abs(get_option('EPS.X_ABS'))
-        self.set_ftol_abs(get_option('EPS.FUNCTION'))
+        self.set_xtol_rel(get_option('EPS.X_REL'))
+        self.set_ftol_abs(get_option('EPS.F_ABS'))
+        self.set_ftol_rel(get_option('EPS.F_REL'))
         self.set_maxeval(get_option('MAX.EVAL'))
 
         self._hin: ConstraintMap = {}
@@ -64,6 +66,11 @@ class BaseOptimizer:
         self._result: Optional[Result] = None
         self._max_or_min = None
         self._verbose = kwargs.get('verbose', False)
+
+    @property
+    def model(self):
+        """The underlying optimizer. Use this if you need to access lower level settings for the optimizer"""
+        return self._model
 
     @property
     def lower_bounds(self):
@@ -142,15 +149,12 @@ class BaseOptimizer:
         ndarray
             Values of free variables at optimality
         """
-
         assert x0 is not None or initial_solution is not None, \
             "If initial vector is not specified, method for initial_solution must be specified"
 
         if x0 is None:
             x0 = self._initial_points(initial_solution, random_state)
-
-        if hasattr(x0, "__iter__"):
-            x0 = np.asarray(x0)
+        x0 = self._set_x0_within_bounds(x0)
 
         sol = self._model.optimize(x0, *args)
         if sol is not None:
@@ -613,6 +617,12 @@ class BaseOptimizer:
             return min_constraint()
         else:
             raise ValueError(f"Unknown initial solution method '{method}'. Check the docs for valid methods")
+
+    def _set_x0_within_bounds(self, x0: Iterable[float]):
+        x0 = np.asarray(x0)
+        x0[x0 > self.upper_bounds] = self.upper_bounds[x0 > self.upper_bounds]
+        x0[x0 < self.lower_bounds] = self.lower_bounds[x0 < self.lower_bounds]
+        return x0
 
     def _set_gradient(self, fn: Callable):
         assert callable(fn), "Argument must be a function"

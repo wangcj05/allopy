@@ -1,7 +1,9 @@
 _global_config = {
     'EPS.CONSTRAINT': 1e-7,
-    'EPS.FUNCTION': 1e-6,
+    'EPS.F_ABS': 1e-6,
+    'EPS.F_REL': 1e-6,
     'EPS.X_ABS': 1e-6,
+    'EPS.X_REL': 0,
     'EPS.STEP': 5e-7,
     'F.SCALE': 1e3,
     'MAX.EVAL': 100000,
