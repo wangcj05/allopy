@@ -8,14 +8,14 @@ VERSION = versioneer.get_version().split('+')[0]
 cmdclass = versioneer.get_cmdclass()
 
 install_requires = [
-    'copulae >=0.4',
-    'muarch >=0.1',
-    'numpy >=1.15',
+    'copulae >=0.4.3',
+    'muarch >=0.1.8',
+    'numpy >=1.16',
     'nlopt >=2.6',
     'requests',
-    'scipy >=1.1',
+    'scipy >=1.3',
     'statsmodels >=0.10',
-    'pandas >=0.24'
+    'pandas >=0.25'
 ]
 
 tests_require = [
@@ -45,6 +45,8 @@ setup(
     install_requires=install_requires,
     include_package_data=True,
     python_requires='>=3.6',
-    test_require=tests_require,
+    extras_requires={
+        "test": tests_require
+    },
     zip_safe=False
 )
