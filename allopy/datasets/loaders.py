@@ -27,7 +27,7 @@ def load_index(*, download=False) -> pd.DataFrame:
     return pd.read_csv(filepath('policy_index.csv', download), parse_dates=[0], index_col=0)
 
 
-def load_monte_carlo(*, download=False) -> np.ndarray:
+def load_monte_carlo(*, download=False, total=False) -> np.ndarray:
     """
     Loads a data set containing a mock Monte Carlo simulation of asset class returns.
 
@@ -40,9 +40,13 @@ def load_monte_carlo(*, download=False) -> np.ndarray:
         If True, forces the data to be downloaded again from the repository. Otherwise, loads the data from the
         stash folder
 
+    total: bool
+        If True, loads the monte carlo simulation with the total set of asset classes to simulate a big portfolio
+
     Returns
     -------
     ndarray
         A Monte Carlo tensor
     """
-    return np.load(filepath('monte_carlo.npy', download))
+    filename = 'monte_carlo_total.npy' if total else 'monte_carlo.npy'
+    return np.load(filepath(filename, download))
