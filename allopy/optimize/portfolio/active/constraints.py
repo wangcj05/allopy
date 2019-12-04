@@ -21,7 +21,7 @@ class ConstraintBuilder:
 
         def _ctr_max_cvar(w):
             w = self._active_weights(w, as_active_cvar)
-            return get_option("F.SCALE") * (max_cvar - self.data.cvar(w, self.rebalance, percentile))
+            return get_option("F.SCALE") * (max_cvar - self.cvar_data.cvar(w, self.rebalance, percentile))
 
         return _ctr_max_cvar
 
