@@ -14,6 +14,7 @@ Presently, **Continuous State Uncertainty optimizers** are not implemented in th
 
     Base Optimizer <base>
     Portfolio Optimizer <portfolio>
+    Active Portfolio Optimizer <active-portfolio>
 
 .. toctree::
     :caption: Discrete State Uncertainty Optimizers

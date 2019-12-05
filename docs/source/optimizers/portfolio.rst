@@ -7,5 +7,19 @@ Using the :class:`PortfolioOptimizer` assumes that there is a returns stream fro
 
 For example, if you have a benchmark (beta) returns stream, 9 other asset classes over 10000 trials and 40 periods, the simulation tensor will be 40 x 10000 x 10 with the first asset axis being the returns of the benchmark. In such a case, the active portfolio optimizer can be used to optimize the portfolio relative to the benchmark.
 
+The :class:`PortfolioOptimizer` houses the following convenience methods:
+
+:maximize_returns:
+    Maximize the returns of the portfolio. You may put in volatility or CVaR constraints for this procedure.
+
+:minimize_volatility:
+    Minimizes the total portfolio volatility
+
+:minimize_cvar:
+    Minimizes the conditional value at risk (expected shortfall of the portfolio)
+
+:maximize_sharpe_ratio:
+    Maximizes the Sharpe ratio of the portfolio.
+
 .. autoclass:: allopy.optimize.PortfolioOptimizer
     :members:
