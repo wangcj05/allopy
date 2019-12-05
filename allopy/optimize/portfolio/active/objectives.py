@@ -1,41 +1,46 @@
-from allopy import OptData, get_option
+from allopy import get_option
+from ..abstract import AbstractObjectiveBuilder
 
 
-class ObjectiveBuilder:
-    def __init__(self, data: OptData, cvar_data: OptData, rebalance: bool):
-        self.data = data
-        self.cvar_data = cvar_data
-        self.rebalance = rebalance
-
+class ObjectiveBuilder(AbstractObjectiveBuilder):
     def max_cvar(self, active_cvar: bool):
-        """Maximizes the CVaR. This means that we're minimizing the losses"""
-
         def _obj_max_cvar(w):
             w = self._format_weights(w, active_cvar)
-            return self.cvar_data.cvar(w, self.rebalance) * get_option("F.SCALE")
+            fv = self.cvar_data.cvar(w, self.rebalance)
+            return (fv - self.penalty(w)) * get_option("F.SCALE")
 
         return _obj_max_cvar
 
     @property
     def max_returns(self):
-        """Objective function to maximize the returns"""
-
         def _obj_max_returns(w):
-            return self.data.expected_return(w, self.rebalance) * get_option("F.SCALE")
+            fv = self.data.expected_return(w, self.rebalance)
+            return (fv - self.penalty(w)) * get_option("F.SCALE")
 
         return _obj_max_returns
 
     @property
-    def max_info_ratio(self):
+    def max_sharpe_ratio(self):
         def _obj_max_sharpe_ratio(w):
-            return self.data.sharpe_ratio([0, *w[1:]], self.rebalance) * get_option("F.SCALE")
+            fv = self.data.sharpe_ratio(w, self.rebalance)
+            return (fv - self.penalty(w)) * get_option("F.SCALE")
 
         return _obj_max_sharpe_ratio
+
+    @property
+    def max_info_ratio(self):
+        def _obj_max_info_ratio(w):
+            w = self._format_weights(w, True)
+            fv = self.data.sharpe_ratio(w, self.rebalance)
+            return (fv - self.penalty(w)) * get_option("F.SCALE")
+
+        return _obj_max_info_ratio
 
     def min_volatility(self, is_tracking_error: bool):
         def _obj_min_tracking_error(w):
             w = self._format_weights(w, remove_first_value=is_tracking_error)
-            return self.data.volatility(w) * get_option("F.SCALE")
+            fv = self.data.volatility(w)
+            return (fv + self.penalty(w)) * get_option("F.SCALE")
 
         return _obj_min_tracking_error
 

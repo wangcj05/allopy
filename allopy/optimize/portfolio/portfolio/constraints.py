@@ -1,11 +1,8 @@
-from allopy import OptData, get_option
+from allopy import get_option
+from ..abstract import AbstractConstraintBuilder
 
 
-class ConstraintBuilder:
-    def __init__(self, data: OptData, cvar_data: OptData, rebalance: bool):
-        self.data = data
-        self.cvar_data = cvar_data
-        self.rebalance = rebalance
+class ConstraintBuilder(AbstractConstraintBuilder):
 
     def max_vol(self, max_vol: float):
         """Volatility must be less than max_vol"""

@@ -1,12 +1,8 @@
-from allopy import OptData, get_option
+from allopy import get_option
+from ..abstract import AbstractConstraintBuilder
 
 
-class ConstraintBuilder:
-    def __init__(self, data: OptData, cvar_data: OptData, rebalance: bool):
-        self.data = data
-        self.cvar_data = cvar_data
-        self.rebalance = rebalance
-
+class ConstraintBuilder(AbstractConstraintBuilder):
     def max_vol(self, max_vol: float, as_tracking_error=False):
         """Volatility must be less than max_vol"""
 
@@ -26,7 +22,7 @@ class ConstraintBuilder:
         return _ctr_max_cvar
 
     def min_returns(self, min_ret: float, as_active_returns=False):
-        """Minimim returns constraint. This is used when objective is to minimize risk st to some minimum returns"""
+        """Minimum returns constraint. This is used when objective is to minimize risk st to some minimum returns"""
 
         def _ctr_min_returns(w):
             w = self._active_weights(w, as_active_returns)

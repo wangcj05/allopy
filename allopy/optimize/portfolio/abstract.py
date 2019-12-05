@@ -1,18 +1,25 @@
 from abc import ABC
 from typing import Optional, Union
+from typing import TypeVar
 
 import numpy as np
 from nlopt import RoundoffLimited
 
 from allopy import OptData
+from allopy.penalty import Penalty
 from allopy.types import OptArray
 from ..algorithms import LD_SLSQP
 from ..base import BaseOptimizer
 
-__all__ = ['AbstractPortfolioOptimizer']
+__all__ = ['AbstractPortfolioOptimizer', 'AbstractObjectiveBuilder', 'AbstractConstraintBuilder']
+
+PenaltyClass = TypeVar("PenaltyClass", bound=Penalty)
 
 
 class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
+    _objectives: "AbstractObjectiveBuilder"
+    _constraints: "AbstractConstraintBuilder"
+
     def __init__(self,
                  data: Union[np.ndarray, OptData],
                  algorithm=LD_SLSQP,
@@ -88,14 +95,6 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
         if sum_to_1:
             self.add_equality_constraint(lambda w: sum(w) - 1)
 
-    def adjust_returns(self, eva: OptArray = None, vol: OptArray = None):
-        self.data: OptData = self.data.calibrate_data(eva, vol)
-        return self
-
-    def adjust_cvar_returns(self, eva: OptArray = None, vol: OptArray = None):
-        self.cvar_data: OptData = self.cvar_data.calibrate_data(eva, vol)
-        return self
-
     @property
     def max_attempts(self):
         return self._max_attempts
@@ -113,6 +112,18 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
     def rebalance(self, rebal: bool):
         assert isinstance(rebal, bool), 'rebalance parameter must be boolean'
         self._rebalance = rebal
+
+    @property
+    def penalty(self):
+        return self._objectives.penalty_class
+
+    @penalty.setter
+    def penalty(self, penalty: Optional[PenaltyClass]):
+        self._objectives.penalty_class = penalty
+
+    @penalty.deleter
+    def penalty(self):
+        del self._objectives.penalty_class
 
     def optimize(self,
                  x0: OptArray = None,
@@ -140,3 +151,39 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
             if self._verbose:
                 print('No solution was found for the given problem. Check the summary() for more information')
             return np.repeat(np.nan, self.data.n_assets)
+
+
+class AbstractObjectiveBuilder(ABC):
+    def __init__(self, data: OptData, cvar_data: OptData, rebalance: bool):
+        self.data = data
+        self.cvar_data = cvar_data
+        self.rebalance = rebalance
+        self._penalty: Optional[PenaltyClass] = None
+
+    def penalty(self, w: np.ndarray):
+        if self._penalty is None:
+            return 0.0
+        return self._penalty.cost(w)
+
+    @property
+    def penalty_class(self):
+        return self._penalty
+
+    @penalty_class.setter
+    def penalty_class(self, penalty):
+        assert isinstance(penalty, Penalty) or None, "value must subclass the Penalty class or be None"
+        if penalty is not None:
+            assert penalty.dim == self.data.n_assets, "dimension of the penalty does not match the data"
+
+        self._penalty = penalty
+
+    @penalty_class.deleter
+    def penalty_class(self):
+        self._penalty = None
+
+
+class AbstractConstraintBuilder(ABC):
+    def __init__(self, data: OptData, cvar_data: OptData, rebalance: bool):
+        self.data = data
+        self.cvar_data = cvar_data
+        self.rebalance = rebalance
