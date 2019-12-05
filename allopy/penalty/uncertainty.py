@@ -41,3 +41,13 @@ class UncertaintyPenalty(Penalty):
 
     def cost(self, w: np.ndarray) -> float:
         return self._lambda * (w @ self._uncertainty @ w) ** 0.5
+
+    def __str__(self):
+        arr = repr(self._uncertainty.round(4)).replace("array(", "").replace(")", "")
+
+        return f"""
+UncertaintyPenalty(
+    lambda={self._lambda},
+    uncertainty={arr}
+)        
+        """.strip()

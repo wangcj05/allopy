@@ -171,7 +171,7 @@ class AbstractObjectiveBuilder(ABC):
 
     @penalty_class.setter
     def penalty_class(self, penalty):
-        assert isinstance(penalty, Penalty) or None, "value must subclass the Penalty class or be None"
+        assert isinstance(penalty, Penalty) or penalty is None, "value must subclass the Penalty class or be None"
         if penalty is not None:
             assert penalty.dim == self.data.n_assets, "dimension of the penalty does not match the data"
 
