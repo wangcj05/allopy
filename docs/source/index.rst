@@ -17,6 +17,7 @@ Currently, it contains routines for:
     Getting Start <getting-started>
     Examples <examples/index>
     Optimizers <optimizers/index>
+    Datasets <datasets>
 
 
 Indices and tables

@@ -31,8 +31,11 @@ def load_monte_carlo(*, download=False, total=False) -> np.ndarray:
     """
     Loads a data set containing a mock Monte Carlo simulation of asset class returns.
 
-    The Monte Carlo tensor has axis represents time, trials and asset respectively. Its shape is
-    80 x 10000 x 9 meaning there are 80 time periods over 10000 trials and 9 asset classes.
+    The Monte Carlo tensor has axis represents time, trials and asset respectively. For the
+    non-total cube, the shape is 80 x 10000 x 9 meaning there are 80 time periods over
+    10000 trials and 9 asset classes.
+
+    The total Monte Carlo tensor's shape is 60 x 10000 x 36
 
     Parameters
     ----------
