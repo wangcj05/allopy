@@ -6,7 +6,7 @@ from .abstract import Penalty
 
 
 class UncertaintyPenalty(Penalty):
-    def __init__(self, uncertainty: Iterable[Union[int, float]], lambda_=1):
+    def __init__(self, uncertainty: Union[Iterable[Union[int, float]], np.ndarray], lambda_=1):
         r"""
         The uncertainty penalty. It penalizes the objective function relative to the level of uncertainty for the
         given asset
@@ -16,9 +16,10 @@ class UncertaintyPenalty(Penalty):
         Given an initial maximizing objective, this penalty will change the objective to
 
         .. math::
-            f(w) - \lambda w^T \Xi w
+            f(w) - \lambda \sqrt{w^T \Phi w}
 
-        where :math:`\Xi` represent the uncertainty matrix
+        where :math:`\Phi` represent the uncertainty matrix. :math:`\lambda = 0` or a 0-matrix is a special case
+        where there are no uncertainty in the projections.
 
         Parameters
         ----------
@@ -39,4 +40,4 @@ class UncertaintyPenalty(Penalty):
         assert self._uncertainty.ndim == 2, ""
 
     def cost(self, w: np.ndarray) -> float:
-        return self._lambda * (w @ self._uncertainty @ w)
+        return self._lambda * (w @ self._uncertainty @ w) ** 0.5
