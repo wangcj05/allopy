@@ -258,3 +258,20 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         """
         self.set_max_objective(self._objectives.max_info_ratio)
         return self.optimize(x0)
+
+    def maximize_sharpe_ratio(self, x0: OptArray = None) -> np.ndarray:
+        """
+        Maximizes the Sharpe ratio the portfolio.
+
+        Parameters
+        ----------
+        x0: array_like, optional
+            initial vector. Starting position for free variables
+
+        Returns
+        -------
+        ndarray
+            Optimal weights
+        """
+        self.set_max_objective(self._objectives.max_sharpe_ratio)
+        return self.optimize(x0)

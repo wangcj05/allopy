@@ -17,9 +17,6 @@ PenaltyClass = TypeVar("PenaltyClass", bound=Penalty)
 
 
 class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
-    _objectives: "AbstractObjectiveBuilder"
-    _constraints: "AbstractConstraintBuilder"
-
     def __init__(self,
                  data: Union[np.ndarray, OptData],
                  algorithm=LD_SLSQP,
@@ -91,6 +88,9 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
 
         self._rebalance = rebalance
         self._max_attempts = kwargs.get('max_attempts', 100)
+
+        self._objectives = None
+        self._constraints = None
 
         if sum_to_1:
             self.add_equality_constraint(lambda w: sum(w) - 1)
