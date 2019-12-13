@@ -17,20 +17,19 @@ __all__ = ["Cubes", "DiscreteUncertaintyOptimizer"]
 
 
 class DiscreteUncertaintyOptimizer(ABC):
-
     def __init__(self,
                  num_assets: int,
                  num_scenarios: int,
                  prob: OptArray = None,
                  algorithm=LD_SLSQP,
                  auto_grad: Optional[bool] = None,
-                 eps_step: Optional[float] = None,
-                 c_eps: Optional[float] = None,
-                 xtol_abs: Union[float, np.ndarray, None] = None,
-                 xtol_rel: Union[float, np.ndarray, None] = None,
-                 ftol_abs: Optional[float] = None,
+                 eps_step: Optional[float] = get_option('EPS.STEP'),
+                 c_eps: Optional[float] = get_option('EPS.CONSTRAINT'),
+                 xtol_abs: Union[float, np.ndarray, None] = get_option('EPS.X_ABS'),
+                 xtol_rel: Union[float, np.ndarray, None] = get_option('EPS.X_REL'),
+                 ftol_abs: Optional[float] = get_option('EPS.F_ABS'),
                  ftol_rel: Optional[float] = None,
-                 max_eval: Optional[int] = None,
+                 max_eval: Optional[int] = get_option('MAX.EVAL'),
                  stopval: Optional[float] = None,
                  verbose=False):
         r"""
@@ -118,13 +117,13 @@ class DiscreteUncertaintyOptimizer(ABC):
 
         # optimizer setup
         self._auto_grad: bool = auto_grad if auto_grad is not None else has_grad
-        self._eps: Optional[float] = eps_step or get_option('EPS.STEP')
-        self._c_eps: Optional[float] = abs(c_eps or get_option('EPS.CONSTRAINT'))
-        self._x_tol_abs: Optional[float] = xtol_abs or get_option('EPS.X_ABS')
-        self._x_tol_rel: Optional[float] = xtol_rel
-        self._f_tol_abs: Optional[float] = ftol_abs or get_option('EPS.FUNCTION')
-        self._f_tol_rel: Optional[float] = ftol_rel
-        self._max_eval: Optional[float] = max_eval or get_option('MAX.EVAL')
+        self._eps: Optional[float] = eps_step
+        self._c_eps: Optional[float] = c_eps
+        self._x_tol_abs: Optional[float] = validate_tolerance(xtol_abs)
+        self._x_tol_rel: Optional[float] = validate_tolerance(xtol_rel)
+        self._f_tol_abs: Optional[float] = validate_tolerance(ftol_abs)
+        self._f_tol_rel: Optional[float] = validate_tolerance(ftol_rel)
+        self._max_eval: Optional[float] = int(max_eval)
         self._stop_val: Optional[float] = stopval
 
         # func

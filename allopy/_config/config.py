@@ -89,8 +89,21 @@ def set_option(key, value):
     ... except KeyError:
     ...     pass  # raises key error
     """
-    assert isinstance(value, (int, float)), "value must be a number"
+
     if key.upper() not in _global_config:
         raise KeyError(f"Configuration {key} does not exist.")
 
-    _global_config[key.upper()] = value
+    _global_config.update(_validated_key_value(key, value))
+
+
+def _validated_key_value(key: str, value):
+    if key.upper() not in _global_config:
+        raise KeyError(f"Configuration {key} does not exist.")
+
+    key = key.upper()
+    if key in {'EPS.CONSTRAINT', 'EPS.F_ABS', 'EPS.F_REL', 'EPS.X_ABS', 'EPS.X_REL', 'EPS.STEP', 'F.SCALE'}:
+        assert isinstance(value, (int, float)) and value >= 0, "value must be positive number"
+    elif key in {'MAX.EVAL'}:
+        assert isinstance(value, int), "value must be an integer"
+
+    return {key: value}

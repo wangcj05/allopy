@@ -41,8 +41,11 @@ def validate_tolerance(tol):
     if tol is None:
         return None
     elif isinstance(tol, (float, int)):
+        assert tol >= 0, "tolerance must be positive"
         return float(tol)
     elif hasattr(tol, "__iter__"):
-        return np.asarray(tol, dtype=float)
+        tol = np.asarray(tol, dtype=float)
+        assert np.all(tol > 0), "tolerance must all be positive"
+        return tol
     else:
         raise ValueError("tolerance must either be a float or a vector of floats")
