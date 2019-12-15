@@ -6,7 +6,7 @@ _global_config = {
     'EPS.X_REL': 0,
     'EPS.STEP': 5e-7,
     'F.SCALE': 1e3,
-    'MAX.EVAL': 100000,
+    'MAX.EVAL': -1,
 }
 
 
