@@ -433,8 +433,8 @@ class RegretOptimizer:
 
         Returns
         -------
-        ndarray
-            Optimal solution weights
+        np.ndarray
+            Regret optimal solution weights
         """
         opt = OptimizationOperation(self._mb, self.prob, self.max_attempts, self.verbose) \
             .optimize(x0_first_level, x0_prop, initial_solution, approx, dist_func, random_state)

@@ -3,27 +3,25 @@ from typing import Callable, Iterable, List, Optional, Union
 import numpy as np
 
 from allopy import OptData, translate_frequency
+from allopy.optimize.algorithms import LD_SLSQP
 from allopy.types import OptArray, OptReal
-from .obj_ctr import *
-from .optimizer import RegretOptimizer
-from ..algorithms import LD_SLSQP
+from .constraints import ConstraintBuilder
+from .objectives import ObjectiveBuilder
+from ..optimizer import RegretOptimizer
 
 
 class PortfolioRegretOptimizer(RegretOptimizer):
     def __init__(self,
-                 num_assets: int,
-                 num_scenarios: int,
+                 data: List[Union[np.ndarray, OptData]],
+                 cvar_data: Optional[List[Union[np.ndarray, OptData]]] = None,
                  prob: OptArray = None,
                  algorithm=LD_SLSQP,
-                 auto_grad: Optional[bool] = None,
-                 eps_step: Optional[float] = None,
                  c_eps: Optional[float] = None,
                  xtol_abs: Union[float, np.ndarray, None] = None,
                  xtol_rel: Union[float, np.ndarray, None] = None,
                  ftol_abs: Optional[float] = None,
                  ftol_rel: Optional[float] = None,
                  max_eval: Optional[int] = None,
-                 stopval: Optional[float] = None,
                  verbose=False,
                  max_attempts=5,
                  rebalance=True,
@@ -69,24 +67,17 @@ class PortfolioRegretOptimizer(RegretOptimizer):
 
         Parameters
         ----------
-        num_assets: int
-            Number of assets
+        data
+            Scenario data. Each data must be a 3 dimensional tensor. Thus data will be a 4-D tensor.
 
-        num_scenarios: int
-            Number of scenarios
+        cvar_data: optional
+            CVaR scenario data. Each data must be a 3 dimensional tensor. Thus data will be a 4-D tensor.
 
         prob
             Vector containing probability of each scenario occurring
 
         algorithm
             The optimization algorithm. Default algorithm is Sequential Least Squares Quadratic Programming.
-
-        auto_grad: bool, optional
-            If True, the optimizer will calculate numeric gradients for functions that do not specify its
-            gradients. The symmetric difference quotient method is used in this case
-
-        eps_step: float, optional
-            Epsilon, smallest degree of change, for numeric gradients
 
         c_eps: float, optional
             Constraint epsilon is the tolerance for the inequality and equality constraints functions. Any
@@ -124,12 +115,6 @@ class PortfolioRegretOptimizer(RegretOptimizer):
             maximum: the number of function evaluations may exceed :code:`maxeval` slightly, depending
             upon the algorithm.) Criterion is disabled if maxeval is non-positive.
 
-        stopval: int, optional
-            Stop when an objective value of at least :code:`stopval` is found: stop minimizing when an
-            objective value ≤ :code:`stopval` is found, or stop maximizing a value ≥ :code:`stopval` is
-            found. (Setting :code:`stopval` to :code:`-HUGE_VAL` for minimizing or :code:`+HUGE_VAL` for
-            maximizing disables this stopping criterion.)
-
         verbose: bool
             If True, the optimizer will report its operations
 
@@ -152,25 +137,34 @@ class PortfolioRegretOptimizer(RegretOptimizer):
         --------
         :class:`RegretOptimizer`: RegretOptimizer
         """
-        super().__init__(num_assets, num_scenarios, prob, algorithm, auto_grad, eps_step, c_eps,
-                         xtol_abs, xtol_rel, ftol_abs, ftol_rel, max_eval, stopval, verbose, max_attempts)
+        time_unit = translate_frequency(time_unit)
+        self._objectives = ObjectiveBuilder(data, cvar_data, rebalance, time_unit)
+        self._constraints = ConstraintBuilder(data, cvar_data, rebalance, time_unit)
 
-        self.rebalance = rebalance
-        self._sum_to_1 = sum_to_1
-        self._time_unit = translate_frequency(time_unit)
+        super().__init__(self._objectives.num_assets, self._objectives.num_scenarios, prob, algorithm, c_eps, xtol_abs,
+                         xtol_rel, ftol_abs, ftol_rel, max_eval, verbose, sum_to_1, max_attempts)
+
+    @property
+    def rebalance(self):
+        return self._objectives.rebalance
+
+    @rebalance.setter
+    def rebalance(self, value):
+        assert isinstance(value, bool), "rebalance must be a boolean value"
+        self._objectives.rebalance = value
+        self._constraints.rebalance = value
 
     def maximize_returns(self,
-                         data: List[Union[np.ndarray, OptData]],
-                         cvar_data: Optional[List[Union[np.ndarray, OptData]]] = None,
                          max_vol: Optional[Union[float, Iterable[float]]] = None,
                          max_cvar: Optional[Union[float, Iterable[float]]] = None,
                          percentile=5.0,
+                         *,
                          x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
                          x0_prop: OptArray = None,
                          approx=True,
                          dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc] = np.square,
                          initial_solution: Optional[str] = "random",
-                         random_state: Optional[int] = None) -> np.ndarray:
+                         random_state: Optional[int] = None):
         """
         Optimizes the expected returns of the portfolio subject to max volatility and/or cvar constraint.
         At least one of the tracking error or cvar constraint must be defined.
@@ -181,12 +175,6 @@ class PortfolioRegretOptimizer(RegretOptimizer):
 
         Parameters
         ----------
-        data
-            Scenario data. Each data must be a 3 dimensional tensor. Thus data will be a 4-D tensor.
-
-        cvar_data: optional
-            CVaR scenario data. Each data must be a 3 dimensional tensor. Thus data will be a 4-D tensor.
-
         max_vol: float or list of floats, optional
             Maximum tracking error allowed. If a scalar, the same value will be used for each scenario
             optimization.
@@ -219,39 +207,28 @@ class PortfolioRegretOptimizer(RegretOptimizer):
 
         random_state: int, optional
             Random seed. Applicable if :code:`initial_solution` is not :code:`None`
-
-        Returns
-        -------
-        ndarray
-            Optimal weights
         """
         assert not (max_vol is None and max_cvar is None), "If maximizing returns subject to some sort of vol/CVaR " \
                                                            "constraint, we must at least specify max CVaR or max vol"
 
-        data, cvar_data = format_inputs(data, cvar_data, self.time_unit, self._num_scenarios)
-        max_vol = format_constraints(max_vol, self._num_scenarios)
-        max_cvar = format_constraints(max_cvar, self._num_scenarios)
-
         if max_vol is not None:
-            self.add_inequality_constraint(ctr_max_vol(data, max_vol))
-
+            self.add_inequality_constraint(self._constraints.max_vol(max_vol))
         if max_cvar is not None:
-            self.add_inequality_constraint(ctr_max_cvar(cvar_data, max_cvar, self.rebalance, percentile))
+            self.add_inequality_constraint(self._constraints.max_cvar(max_cvar, percentile))
 
-        self._set_sum_equal_1_constraint()
-        self.set_max_objective(obj_max_returns(data, self.rebalance))
+        self.set_max_objective(self._objectives.max_returns)
 
         return self.optimize(x0_first_level, x0_prop, initial_solution, approx, dist_func, random_state)
 
     def minimize_volatility(self,
-                            data: List[Union[np.ndarray, OptData]],
                             min_ret: OptReal = None,
+                            *,
                             x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
                             x0_prop: OptArray = None,
                             approx=True,
                             dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc] = np.square,
                             initial_solution: Optional[str] = "random",
-                            random_state: Optional[int] = None) -> np.ndarray:
+                            random_state: Optional[int] = None):
         """
         Minimizes the tracking error of the portfolio
 
@@ -260,9 +237,6 @@ class PortfolioRegretOptimizer(RegretOptimizer):
 
         Parameters
         ----------
-        data
-            Scenario data. Each data must be a 3 dimensional tensor. Thus data will be a 4-D tensor.
-
         min_ret: float or list of floats, optional
             The minimum returns required for the portfolio. If a scalar, the same value will be used for each
             scenario optimization.
@@ -288,27 +262,17 @@ class PortfolioRegretOptimizer(RegretOptimizer):
 
         random_state: int, optional
             Random seed. Applicable if :code:`initial_solution` is not :code:`None`
-
-        Returns
-        -------
-        ndarray
-            Optimal weights
         """
-        data, _ = format_inputs(data, None, self.time_unit, self._num_scenarios)
-        min_ret = format_constraints(min_ret, self._num_scenarios)
-
         if min_ret is not None:
-            self.add_inequality_constraint(ctr_min_returns(data, min_ret, self.rebalance))
+            self.add_inequality_constraint(self._constraints.min_returns(min_ret))
 
-        self._set_sum_equal_1_constraint()
-
-        self.set_min_objective(obj_min_vol(data))
+        self.set_min_objective(self._objectives.min_vol)
         return self.optimize(x0_first_level, x0_prop, initial_solution, approx, dist_func, random_state)
 
     def minimize_cvar(self,
-                      data: List[Union[np.ndarray, OptData]],
-                      cvar_data: Optional[List[Union[np.ndarray, OptData]]] = None,
                       min_ret: OptReal = None,
+                      percentile=5.0,
+                      *,
                       x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
                       x0_prop: OptArray = None,
                       approx=True,
@@ -324,15 +288,13 @@ class PortfolioRegretOptimizer(RegretOptimizer):
 
         Parameters
         ----------
-        data
-            Scenario data. Each data must be a 3 dimensional tensor. Thus data will be a 4-D tensor.
-
-        cvar_data: optional
-            CVaR scenario data. Each data must be a 3 dimensional tensor. Thus data will be a 4-D tensor.
-
         min_ret: float or list of floats, optional
             The minimum returns required for the portfolio. If a scalar, the same value will be used for each
             scenario optimization.
+
+        percentile: float
+            The CVaR percentile value for the objective. This is the average expected shortfall from values below
+            this threshold
 
         x0_first_level: list of list of floats or ndarray, optional
             List of initial solution vector for each scenario optimization. If provided, the list must have the
@@ -361,19 +323,14 @@ class PortfolioRegretOptimizer(RegretOptimizer):
         ndarray
             Optimal weights
         """
-        data, cvar_data = format_inputs(data, cvar_data, self.time_unit, self._num_scenarios)
-        min_ret = format_constraints(min_ret, self._num_scenarios)
-
         if min_ret is not None:
-            self.add_inequality_constraint(ctr_min_returns(cvar_data, min_ret, self.rebalance))
+            self.add_inequality_constraint(self._constraints.min_returns(min_ret))
 
-        self._set_sum_equal_1_constraint()
-        self.set_max_objective(obj_max_cvar(data, self.rebalance))
-
+        self.set_max_objective(self._objectives.max_cvar(percentile))
         return self.optimize(x0_first_level, x0_prop, initial_solution, approx, dist_func, random_state)
 
     def maximize_sharpe_ratio(self,
-                              data: List[Union[np.ndarray, OptData]],
+                              *,
                               x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
                               x0_prop: OptArray = None,
                               approx=True,
@@ -385,9 +342,6 @@ class PortfolioRegretOptimizer(RegretOptimizer):
 
         Parameters
         ----------
-        data
-            Scenario data. Each data must be a 3 dimensional tensor. Thus data will be a 4-D tensor.
-
         x0_first_level: list of list of floats or ndarray, optional
             List of initial solution vector for each scenario optimization. If provided, the list must have the
             same length at the first dimension as the number of solutions.
@@ -415,62 +369,5 @@ class PortfolioRegretOptimizer(RegretOptimizer):
         ndarray
             Optimal weights
         """
-        data, _ = format_inputs(data, None, self.time_unit, self._num_scenarios)
-
-        self.set_max_objective(obj_max_sharpe_ratio(data, self.rebalance))
+        self.set_max_objective(self._objectives.max_sharpe_ratio)
         return self.optimize(x0_first_level, x0_prop, initial_solution, approx, dist_func, random_state)
-
-    @property
-    def time_unit(self):
-        return self._time_unit
-
-    def _set_sum_equal_1_constraint(self):
-        if self._sum_to_1:
-            self.add_equality_constraint([sum_equal_1] * self._num_scenarios)
-
-
-def format_constraints(value: Optional[Union[float, Iterable[float]]], num_scenarios: int):
-    if value is None:
-        return None
-    if hasattr(value, "__iter__"):
-        value = [float(i) for i in value]
-    else:
-        value = [float(value)] * num_scenarios
-
-    assert len(value) == num_scenarios, f"constraint value can either be a scalar or a list with {num_scenarios} float"
-    return value
-
-
-def format_inputs(data: List[Union[OptData, np.ndarray]],
-                  cvar_data: Optional[List[Union[OptData, np.ndarray]]],
-                  time_unit: int,
-                  num_scenarios: int):
-    assert len(data) == num_scenarios, f"data must have {num_scenarios} scenarios"
-
-    data = _format_data(data, time_unit)
-    cvar_data = _format_cvar_data(cvar_data, data, time_unit)
-
-    assert len(cvar_data) == num_scenarios, f"cvar_data must have {num_scenarios} scenarios"
-    return data, cvar_data
-
-
-def _format_data(data: List[Union[OptData, np.ndarray]],
-                 time_unit: int):
-    data = [d if isinstance(data, OptData) else OptData(d, time_unit) for d in data]
-    assert all([d.time_unit == time_unit for d in data]), "Time unit in data must all match the one in optimizer"
-    assert len(set([d.shape for d in data])) == 1, "data must all have the same shape"
-
-    return data
-
-
-def _format_cvar_data(cvar_data: Optional[Union[OptData,]],
-                      data: List[OptData],
-                      time_unit: int) -> List[OptData]:
-    if cvar_data is None:
-        return [d.cut_by_horizon(3) for d in data]
-
-    cvar_data = [c if isinstance(c, OptData) else OptData(c, time_unit) for c in cvar_data]
-    assert all([c.n_assets == data[0].n_assets for c in cvar_data]), \
-        "cvar data must all have the same number of assets as data"
-
-    return cvar_data

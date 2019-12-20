@@ -3,7 +3,7 @@ from typing import Callable, List, Optional, Union
 import nlopt as nl
 import numpy as np
 
-from allopy import BaseOptimizer
+from allopy.optimize.base import BaseOptimizer
 from allopy.types import OptArray
 from ._modelbuilder import ModelBuilder
 from .result import RegretOptimizerSolution, RegretResult
@@ -110,10 +110,10 @@ class OptimizationOperation:
             Initial Solution for more information
         """
         builder = self.builder
-        f_values = np.array(f(s) for f, s in zip(builder.obj_func, solutions))
+        f_values = np.array(f(s) for f, s in zip(builder.obj_funcs, solutions))
 
         def regret(w):
-            curr_f_values = np.array([f(w) for f in builder.obj_func])
+            curr_f_values = np.array([f(w) for f in builder.obj_funcs])
             cost = dist_func(f_values - curr_f_values)
             return 100 * sum(self.prob * cost)
 
@@ -158,10 +158,10 @@ class OptimizationOperation:
         """
         # weighted function values for each scenario
         builder = self.builder
-        f_values: np.ndarray = np.array([f(s) for f, s in zip(builder.obj_func, solutions)])
+        f_values: np.ndarray = np.array([f(s) for f, s in zip(builder.obj_funcs, solutions)])
 
         def regret(p):
-            cost = f_values - np.array([f(p @ solutions) for f in builder.obj_func])
+            cost = f_values - np.array([f(p @ solutions) for f in builder.obj_funcs])
             cost = dist_func(cost)
             return 100 * sum(self.prob * cost)
 

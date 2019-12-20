@@ -8,6 +8,8 @@ from allopy.optimize import BaseOptimizer
 from allopy.optimize.algorithms import has_gradient, map_algorithm
 from allopy.optimize.utils import create_matrix_constraint, validate_matrix_constraints
 
+__all__ = ["ModelBuilder"]
+
 
 class ModelBuilder:
     def __init__(self,
@@ -56,8 +58,6 @@ class ModelBuilder:
 
     def __call__(self, index: int):
         """Creates the individual optimization model for the first step"""
-        assert isinstance(self.max_or_min, str)
-
         model = BaseOptimizer(self.num_assets, self.algorithm, verbose=self.verbose)
         model.set_bounds(self.lower_bounds, self.upper_bounds)
 
@@ -114,21 +114,21 @@ class ModelBuilder:
         return self._min
 
     @property
-    def obj_func(self):
+    def obj_funcs(self):
         return self._obj_funcs
 
-    @obj_func.setter
-    def obj_func(self, functions: list):
+    @obj_funcs.setter
+    def obj_funcs(self, functions: list):
         self._validate_num_functions(functions)
         self._obj_funcs = functions
 
     def add_inequality_constraints(self, functions: list):
         self._validate_num_functions(functions)
-        self._hin[self._build_name(functions[0].__name__, self._hin.keys())] = functions
+        self._hin[build_name(functions[0].__name__, self._hin.keys())] = functions
 
     def add_equality_constraints(self, functions: list):
         self._validate_num_functions(functions)
-        self._heq[self._build_name(functions[0].__name__, self._heq.keys())] = functions
+        self._heq[build_name(functions[0].__name__, self._heq.keys())] = functions
 
     def add_inequality_matrix_constraints(self, A, b):
         A, b = validate_matrix_constraints(A, b)
@@ -147,14 +147,14 @@ class ModelBuilder:
                     f"Functions expected: {self.num_scenarios}"
         assert len(funcs) == self.num_scenarios, error_msg
 
-    @staticmethod
-    def _build_name(name, names):
-        last_index = -1
-        for n in names:
-            match = re.match(name + r"(?:_(\d+))?$", n)
-            if match:
-                index = int(match.group(1) or 0)
-                if index > last_index:
-                    last_index = index
 
-        return name if last_index == -1 else f"{name}_{last_index + 1}"
+def build_name(name, names):
+    last_index = -1
+    for n in names:
+        match = re.match(name + r"(?:_(\d+))?$", n)
+        if match:
+            index = int(match.group(1) or 0)
+            if index > last_index:
+                last_index = index
+
+    return name if last_index == -1 else f"{name}_{last_index + 1}"
