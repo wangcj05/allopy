@@ -1,36 +1,33 @@
-from dataclasses import dataclass
 from typing import Callable, List, Optional, Union
 
-import nlopt as nl
 import numpy as np
 
-from allopy.optimize import BaseOptimizer
-from allopy.types import OptArray
-from .obj_ctr import sum_equal_1
-from .result import RegretResult
+from allopy import get_option
+from allopy.optimize.algorithms import LD_SLSQP
+from allopy.optimize.utils import validate_tolerance
+from allopy.types import Numeric, OptArray
+from ._modelbuilder import ModelBuilder
+from ._operations import OptimizationOperation
+from .result import RegretOptimizerSolution, RegretResult
 from .summary import RegretSummary
-from ..algorithms import LD_SLSQP
-from ..uncertainty import DiscreteUncertaintyOptimizer
 
 __all__ = ['RegretOptimizer']
 
 
-class RegretOptimizer(DiscreteUncertaintyOptimizer):
+class RegretOptimizer:
     def __init__(self,
                  num_assets: int,
                  num_scenarios: int,
                  prob: OptArray = None,
                  algorithm=LD_SLSQP,
-                 auto_grad: Optional[bool] = None,
-                 eps_step: Optional[float] = None,
                  c_eps: Optional[float] = None,
                  xtol_abs: Union[float, np.ndarray, None] = None,
                  xtol_rel: Union[float, np.ndarray, None] = None,
                  ftol_abs: Optional[float] = None,
                  ftol_rel: Optional[float] = None,
                  max_eval: Optional[int] = None,
-                 stopval: Optional[float] = None,
                  verbose=False,
+                 sum_to_1=True,
                  max_attempts=5):
         r"""
         The RegretOptimizer is a convenience class for scenario based optimization.
@@ -83,13 +80,6 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         algorithm
             The optimization algorithm. Default algorithm is Sequential Least Squares Quadratic Programming.
 
-        auto_grad: bool, optional
-            If True, the optimizer will calculate numeric gradients for functions that do not specify its
-            gradients. The symmetric difference quotient method is used in this case
-
-        eps_step: float, optional
-            Epsilon, smallest degree of change, for numeric gradients
-
         c_eps: float, optional
             Constraint epsilon is the tolerance for the inequality and equality constraints functions. Any
             value that is less than the constraint epsilon is considered to be within the boundary.
@@ -126,14 +116,11 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
             maximum: the number of function evaluations may exceed :code:`maxeval` slightly, depending
             upon the algorithm.) Criterion is disabled if maxeval is non-positive.
 
-        stopval: int, optional
-            Stop when an objective value of at least :code:`stopval` is found: stop minimizing when an
-            objective value ≤ :code:`stopval` is found, or stop maximizing a value ≥ :code:`stopval` is
-            found. (Setting :code:`stopval` to :code:`-HUGE_VAL` for minimizing or :code:`+HUGE_VAL` for
-            maximizing disables this stopping criterion.)
-
         verbose: bool
             If True, the optimizer will report its operations
+
+        sum_to_1: bool
+            If true, the optimal weights for each first level scenario must sum to 1.
 
         max_attempts: int
             Number of times to retry optimization. This is useful when optimization is in a highly unstable
@@ -143,12 +130,213 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         --------
         :class:`DiscreteUncertaintyOptimizer`: Discrete Uncertainty Optimizer
         """
-        super().__init__(num_assets, num_scenarios, prob, algorithm, auto_grad, eps_step, c_eps,
-                         xtol_abs, xtol_rel, ftol_abs, ftol_rel, max_eval, stopval, verbose)
+        assert isinstance(num_assets, int) and num_assets > 0, "num_assets must be an integer and more than 0"
+        assert isinstance(num_scenarios, int) and num_scenarios > 0, "num_assets must be an integer and more than 0"
+        self._num_assets = num_assets
+        self._num_scenarios = num_scenarios
+
+        self._mb = ModelBuilder(
+            num_assets,
+            num_scenarios,
+            algorithm,
+            [],
+            None,
+            None,
+            {},
+            {},
+            {},
+            {},
+            validate_tolerance(xtol_abs or get_option('EPS.X_ABS')),
+            validate_tolerance(xtol_rel or get_option('EPS.X_REL')),
+            validate_tolerance(ftol_abs or get_option('EPS.F_ABS')),
+            validate_tolerance(ftol_rel or get_option('EPS.F_REL')),
+            int(max_eval or get_option('MAX.EVAL')),
+            c_eps or get_option('EPS.CONSTRAINT'),
+            verbose
+        )
+        self._prob = None
+        self.prob = prob
+
+        # result formatting options
+        self._result = None
+        self._solution = None
+        self.sum_to_1 = sum_to_1
 
         assert isinstance(max_attempts, int) and max_attempts > 0, 'max_attempts must be an integer >= 1'
         self._max_attempts = max_attempts
-        self._result: RegretResult = RegretResult(num_assets, num_scenarios)
+        self._verbose = verbose
+
+    @property
+    def prob(self):
+        """Vector containing probability of each scenario occurring"""
+        return self._prob
+
+    @prob.setter
+    def prob(self, prob: OptArray):
+        if prob is None:
+            prob = np.ones(self._num_scenarios) / self._num_scenarios
+
+        assert len(prob) == self._num_scenarios, "probability vector length should equal number of scenarios"
+        self._prob = np.asarray(prob)
+
+    @property
+    def lower_bounds(self):
+        """Lower bound of each variable"""
+        return self._mb.lower_bounds
+
+    @lower_bounds.setter
+    def lower_bounds(self, lb: Union[int, float, np.ndarray]):
+        n = self._num_assets
+        if isinstance(lb, (int, float)):
+            lb = np.repeat(float(lb), n)
+
+        assert len(lb) == self._mb.num_assets, f"Input vector length must be {n}"
+        self._mb.lower_bounds = np.asarray(lb)
+
+    @property
+    def upper_bounds(self):
+        """Upper bound of each variable"""
+        return self._mb.upper_bounds
+
+    @upper_bounds.setter
+    def upper_bounds(self, ub: Union[int, float, np.ndarray]):
+        n = self._num_assets
+        if isinstance(ub, (int, float)):
+            ub = np.repeat(float(ub), n)
+
+        assert len(ub) == n, f"Input vector length must be {n}"
+        self._mb.upper_bounds = np.asarray(ub)
+
+    def set_bounds(self, lb: Numeric, ub: Numeric):
+        """
+        Sets the lower and upper bound
+
+        Parameters
+        ----------
+        lb: {int, float, ndarray}
+            Vector of lower bounds. If array, must be same length as number of free variables. If :class:`float` or
+            :class:`int`, value will be propagated to all variables.
+
+        ub: {int, float, ndarray}
+            Vector of upper bounds. If array, must be same length as number of free variables. If :class:`float` or
+            :class:`int`, value will be propagated to all variables.
+        """
+        self.lower_bounds = lb
+        self.upper_bounds = ub
+
+        return self
+
+    def set_max_objective(self, functions: List[Callable]):
+        """
+        Sets the optimizer to maximize the objective function. If gradient of the objective function is not set and the
+        algorithm used to optimize is gradient-based, the optimizer will attempt to insert a smart numerical gradient
+        for it.
+
+        The list of functions needs to match the number of scenarios. The function at index 0 will be assigned as
+        the objective function to the first optimization regime.
+
+        Parameters
+        ----------
+        functions: List of Callable
+            Objective function. The function signature should be such that the first argument takes in a weight
+            vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
+            given, the user must put adjust the gradients inplace.
+        """
+        self._mb.max_or_min = 'maximize'
+        self._mb.obj_funcs = functions
+        return self
+
+    def set_min_objective(self, functions: List[Callable]):
+        """
+        Sets the optimizer to minimize the objective function. If gradient of the objective function is not set and the
+        algorithm used to optimize is gradient-based, the optimizer will attempt to insert a smart numerical gradient
+        for it.
+
+        The list of functions needs to match the number of scenarios. The function at index 0 will be assigned as
+        the objective function to the first optimization regime.
+
+        Parameters
+        ----------
+        functions: List of Callable
+            Objective function. The function signature should be such that the first argument takes in a weight
+            vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
+            given, the user must put adjust the gradients inplace.
+        """
+        self._mb.max_or_min = 'minimize'
+        self._mb.obj_funcs = functions
+        return self
+
+    def add_inequality_constraint(self, functions: List[Callable]):
+        """
+        Adds the equality constraint function in standard form, A <= b. If the gradient of the constraint function is
+        not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
+        numerical gradient for it.
+
+        The list of functions needs to match the number of scenarios. The function at index 0 will be assigned as
+        a constraint function to the first optimization regime.
+
+        Parameters
+        ----------
+        functions: List of Callable
+            Constraint functions. The function signature should be such that the first argument takes in a weight
+            vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
+            given, the user must put adjust the gradients inplace.
+        """
+        self._mb.add_inequality_constraints(functions)
+        return self
+
+    def add_equality_constraint(self, functions: List[Callable]):
+        """
+        Adds the equality constraint function in standard form, A = b. If the gradient of the constraint function
+        is not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
+        numerical gradient for it.
+
+        The list of functions needs to match the number of scenarios. The function at index 0 will be assigned as
+        a constraint function to the first optimization regime.
+
+        Parameters
+        ----------
+        functions: List of Callable
+            Constraint function. The function signature should be such that the first argument takes in a weight
+            vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
+            given, the user must put adjust the gradients inplace.
+        """
+        self._mb.add_equality_constraints(functions)
+        return self
+
+    def add_inequality_matrix_constraint(self, A, b):
+        r"""
+        Sets inequality constraints in standard matrix form.
+
+        For inequality, :math:`\mathbf{A} \cdot \mathbf{x} \leq \mathbf{b}`
+
+        Parameters
+        ----------
+        A: {iterable float, ndarray}
+            Inequality matrix. Must be 2 dimensional.
+
+        b: {scalar, ndarray}
+            Inequality vector or scalar. If scalar, it will be propagated.
+        """
+        self._mb.add_inequality_matrix_constraints(A, b)
+        return self
+
+    def add_equality_matrix_constraint(self, Aeq, beq):
+        r"""
+        Sets equality constraints in standard matrix form.
+
+        For equality, :math:`\mathbf{A} \cdot \mathbf{x} = \mathbf{b}`
+
+        Parameters
+        ----------
+        Aeq: {iterable float, ndarray}
+            Equality matrix. Must be 2 dimensional
+
+        beq: {scalar, ndarray}
+            Equality vector or scalar. If scalar, it will be propagated
+        """
+        self._mb.add_equality_matrix_constraints(Aeq, beq)
+        return self
 
     def optimize(self,
                  x0_first_level: Optional[Union[List[OptArray], np.ndarray]] = None,
@@ -239,149 +427,13 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
         ndarray
             Optimal solution weights
         """
-        if isinstance(random_state, int) and isinstance(initial_solution, str) and initial_solution.lower() == "random":
-            np.random.seed(random_state)
+        opt = OptimizationOperation(self._mb, self.prob, self.sum_to_1, self.max_attempts, self.verbose) \
+            .optimize(x0_first_level, x0_prop, initial_solution, approx, dist_func, random_state)
 
-        self._validate_dist_func(dist_func)
+        self._result = opt.result
+        self._solution = opt.solution
 
-        x0_first_level = self._validate_first_level_solution(x0_first_level)
-
-        # optimal solution to each scenario. Each row represents a single scenario and
-        # each column represents an asset class
-        solutions = np.array([
-            self._optimize(
-                self._setup_optimization_model(i),
-                x0_first_level[i],
-                initial_solution
-            ) for i in range(self._num_scenarios)
-        ])
-
-        if np.isnan(solutions).any():
-            props = np.repeat(np.nan, self._num_scenarios) if approx else None
-            weights = np.repeat(np.nan, self._num_assets)
-        elif approx:
-            props, weights = self._optimize_approx(x0_prop, solutions, dist_func, initial_solution)
-        else:
-            props, weights = self._optimize_actual(x0_prop, solutions, dist_func, initial_solution)
-
-        self._solution = RegretOptimizerSolution(weights, solutions, props)
-
-        self._result.update(self._c_eps, self._hin, self._heq, self._min, self._meq, weights, props, solutions,
-                            self._obj_funcs)
-
-        return weights
-
-    def _optimize(self, model: BaseOptimizer, x0: OptArray = None, initial_solution=None):
-        """Helper method to run the model"""
-
-        for _ in range(self.max_attempts):
-            try:
-                w = model.optimize(x0, initial_solution=initial_solution)
-                if w is None or np.isnan(w).any():
-                    if initial_solution is None:
-                        initial_solution = "random"
-                    x0 = None
-                else:
-                    return w
-
-            except (nl.RoundoffLimited, RuntimeError):
-                if initial_solution is None:
-                    initial_solution = "random"
-                x0 = None
-        else:
-            if self._verbose:
-                print('No solution was found for the given problem. Check the summary() for more information')
-            return np.repeat(np.nan, self._num_assets)
-
-    def _optimize_actual(self,
-                         x0: OptArray,
-                         solutions: np.ndarray,
-                         dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc],
-                         initial_solution: Optional[str] = None):
-        """
-        Runs the second step (regret minimization) using the actual weights as the decision variable
-
-        Parameters
-        ----------
-        x0
-            Initial solution. If provided, this must be the final portfolio weights
-
-        solutions
-            Matrix of solution where the rows represents the weights for the scenario and the
-            columns represent the asset classes
-
-        dist_func: Callable
-            Distance function to scale the objective function
-
-        initial_solution: str, optional
-            The method to find the initial solution if the initial vector :code:`x0` is not specified. Set as
-            :code:`None` to disable. However, if disabled, the initial vector must be supplied. See notes on
-            Initial Solution for more information
-        """
-        f_values = np.array(self._obj_funcs[i](s) for i, s in enumerate(solutions))
-
-        def regret(w):
-            curr_f_values = np.array([f(w) for f in self._obj_funcs])
-            cost = dist_func(f_values - curr_f_values)
-            return 100 * sum(self.prob * cost)
-
-        model = BaseOptimizer(self._num_assets)
-        model.set_min_objective(regret)
-        model.set_bounds(self.lower_bounds, self.upper_bounds)
-
-        for constraints, set_constraint in [(self._meq.values(), model.add_equality_matrix_constraint),
-                                            (self._min.values(), model.add_inequality_matrix_constraint)]:
-            for c in constraints:
-                set_constraint(c, self._c_eps)
-
-        return None, self._optimize(model,
-                                    self.prob @ solutions if x0 is None else x0,
-                                    initial_solution)
-
-    def _optimize_approx(self,
-                         x0: OptArray,
-                         solutions: np.ndarray,
-                         dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc],
-                         initial_solution: Optional[str] = None):
-        """
-        Runs the second step (regret minimization) where the decision variable
-
-        Parameters
-        ----------
-        x0
-            Initial solution. If provided, this must be the proportion of each scenario's contribution to
-            the final portfolio weights
-
-        solutions
-            Matrix of solution where the rows represents the weights for the scenario and the
-            columns represent the asset classes
-
-        dist_func: Callable
-            Distance function to scale the objective function
-
-        initial_solution: str, optional
-            The method to find the initial solution if the initial vector :code:`x0` is not specified. Set as
-            :code:`None` to disable. However, if disabled, the initial vector must be supplied. See notes on
-            Initial Solution for more information
-        """
-
-        # weighted function values for each scenario
-        f_values: np.ndarray = np.array([self._obj_funcs[i](s) for i, s in enumerate(solutions)])
-
-        def regret(p):
-            cost = f_values - np.array([f(p @ solutions) for f in self._obj_funcs])
-            cost = dist_func(cost)
-            return 100 * sum(self.prob * cost)
-
-        model = BaseOptimizer(self._num_scenarios)
-        model.set_min_objective(regret)
-        model.add_equality_constraint(sum_equal_1)
-        model.set_bounds(0, 1)
-
-        proportions = self._optimize(model,
-                                     self.prob if x0 is None else x0,
-                                     initial_solution)
-        return proportions, proportions @ solutions
+        return self.solution.regret_optimal
 
     @property
     def max_attempts(self):
@@ -394,7 +446,13 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
 
     @property
     def result(self) -> RegretResult:
-        return super().result
+        return self._result
+
+    @property
+    def solution(self) -> "RegretOptimizerSolution":
+        if self._solution is None:
+            raise RuntimeError("Model has not been optimized yet")
+        return self._solution
 
     def set_meta(self, *,
                  asset_names: Optional[List[str]] = None,
@@ -432,72 +490,115 @@ class RegretOptimizer(DiscreteUncertaintyOptimizer):
 
         self._result.scenario_names = value
 
-    @property
-    def solution(self) -> "RegretOptimizerSolution":
-        if self._solution is None:
-            raise RuntimeError("Model has not been optimized yet")
-        return self._solution
-
     def summary(self):
         return RegretSummary(self._result)
 
-    def _setup_optimization_model(self, index: int):
-        """Sets up the Base Optimizer"""
-        model = BaseOptimizer(self._num_assets, self._algorithm, verbose=self._verbose)
-        model.set_bounds(self.lower_bounds, self.upper_bounds)
+    def set_epsilon_constraint(self, eps: float):
+        """
+        Sets the tolerance for the constraint functions
 
-        # sets up optimizer's programs and bounds
-        for item, set_option in [
-            (self._x_tol_abs, model.set_xtol_abs),
-            (self._x_tol_rel, model.set_xtol_rel),
-            (self._f_tol_abs, model.set_ftol_abs),
-            (self._f_tol_rel, model.set_ftol_rel),
-            (self._max_eval, model.set_maxeval),
-            (self._stop_val, model.set_stopval),
-        ]:
-            if item is not None:
-                set_option(item)
+        Parameters
+        ----------
+        eps: float
+            Tolerance
+        """
+        assert isinstance(eps, float) and eps >= 0, "Epsilon must be a float that is >= 0"
+        self._mb.c_eps = eps
+        return self
 
-        # sets constraints
-        for constraints, set_constraint in [(self._min.values(), model.add_inequality_matrix_constraint),
-                                            (self._meq.values(), model.add_equality_matrix_constraint)]:
-            for c in constraints:
-                set_constraint(c, self._c_eps)
+    def set_xtol_abs(self, tol: Union[float, np.ndarray]):
+        """
+        Sets absolute tolerances on optimization parameters.
 
-        for constraints, set_constraint in [(self._heq.values(), model.add_equality_constraint),
-                                            (self._hin.values(), model.add_inequality_constraint)]:
-            for c in constraints:
-                set_constraint(c[index], self._c_eps)
+        The absolute tolerances on optimization parameters. :code:`tol` is an array giving the
+        tolerances: stop when an optimization step (or an estimate of the optimum) changes every
+        parameter :code:`x[i]` by less than :code:`tol[i]`. For convenience, if a scalar :code:`tol`
+        is given, it will be used to set the absolute tolerances in all n optimization parameters to
+        the same value. Criterion is disabled if tol is non-positive.
 
-        # sets up the objective function
-        assert self._max_or_min in ('maximize', 'minimize') and len(self._obj_funcs) == self._num_scenarios, \
-            "Objective function is not set yet. Use the .set_max_objective() or .set_min_objective() methods to do so"
+        Parameters
+        ----------
+        tol: float or np.ndarray
+            Absolute tolerance for each of the free variables
+        """
+        self._mb.x_tol_abs = validate_tolerance(tol)
+        return self
 
-        if self._max_or_min == "maximize":
-            model.set_max_objective(self._obj_funcs[index])
-        else:
-            model.set_min_objective(self._obj_funcs[index])
+    def set_xtol_rel(self, tol: Union[float, np.ndarray]):
+        r"""
+        Sets relative tolerances on optimization parameters.
 
-        return model
+        Set relative tolerance on optimization parameters: stop when an optimization step (or an estimate
+        of the optimum) causes a relative change the parameters :code:`x` by less than :code:`tol`,
+        i.e. :math:`\|\Delta x\|_w < tol \cdot \|x\|_w` measured by a weighted :math:`L_1` norm
+        :math:`\|x\|_w = \sum_i w_i |x_i|`, where the weights :math:`w_i` default to 1. (If there is
+        any chance that the optimal :math:`\|x\|` is close to zero, you might want to set an absolute
+        tolerance with `code:`xtol_abs` as well.) Criterion is disabled if tol is non-positive.
 
-    def _validate_dist_func(self, dist_func):
-        assert callable(dist_func), "dist_func must be a callable function"
+        Parameters
+        ----------
+        tol: float or np.ndarray
+            relative tolerance for each of the free variables
+        """
+        self._mb.x_tol_rel = validate_tolerance(tol)
+        return self
 
-        assert isinstance(dist_func(np.random.uniform(size=self._num_assets)), np.ndarray), \
-            "dist_func must map a vector to a vector"
+    def set_maxeval(self, n: int):
+        """
+        Sets maximum number of objective function evaluations.
 
-    def _validate_first_level_solution(self, x0_first_level: Optional[Union[List[OptArray], np.ndarray]]):
-        if x0_first_level is None:
-            return [None] * self._num_scenarios
+        Stop when the number of function evaluations exceeds :code:`maxeval`. (This is not a strict
+        maximum: the number of function evaluations may exceed :code:`maxeval` slightly, depending
+        upon the algorithm.) Criterion is disabled if maxeval is non-positive.
 
-        assert len(x0_first_level) == self._num_scenarios, \
-            "Initial first level solution data must match number of scenarios"
+        Parameters
+        ----------
+        n: int
+            maximum number of evaluations
+        """
+        assert isinstance(n, int), "max evaluation must be an integer"
+        self._mb.max_eval = n
+        return self
 
-        return x0_first_level
+    def set_ftol_abs(self, tol: float):
+        """
+        Set absolute tolerance on objective function value.
 
+        The absolute tolerance on function value: stop when an optimization step (or an estimate of
+        the optimum) changes the function value by less than :code:`tol`. Criterion is disabled if
+        tol is non-positive.
 
-@dataclass
-class RegretOptimizerSolution:
-    regret_optimal: np.ndarray
-    scenario_optimal: np.ndarray
-    proportions: Optional[np.ndarray] = None
+        Parameters
+        ----------
+        tol: float
+            absolute tolerance of objective function value
+        """
+        self._mb.f_tol_abs = validate_tolerance(tol)
+        return self
+
+    def set_ftol_rel(self, tol: Optional[float]):
+        """
+        Set relative tolerance on objective function value.
+
+        Set relative tolerance on function value: stop when an optimization step (or an estimate of
+        the optimum) changes the objective function value by less than :code:`tol` multiplied by the
+        absolute value of the function value. (If there is any chance that your optimum function value
+        is close to zero, you might want to set an absolute tolerance with :code:`ftol_abs` as well.)
+        Criterion is disabled if tol is non-positive.
+
+        Parameters
+        ----------
+        tol: float, optional
+            Absolute relative of objective function value
+       """
+        self._mb.f_tol_rel = validate_tolerance(tol)
+        return self
+
+    @property
+    def verbose(self):
+        return self._verbose
+
+    @verbose.setter
+    def verbose(self, verbose: bool):
+        self._verbose = verbose
+        assert isinstance(verbose, bool)
