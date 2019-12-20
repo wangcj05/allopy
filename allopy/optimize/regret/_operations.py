@@ -10,10 +10,9 @@ from .result import RegretOptimizerSolution, RegretResult
 
 
 class OptimizationOperation:
-    def __init__(self, builder: ModelBuilder, prob: np.ndarray, sum_to_1: bool, max_attempts: int, verbose: bool):
+    def __init__(self, builder: ModelBuilder, prob: np.ndarray, max_attempts: int, verbose: bool):
         self.builder = builder
         self.prob = prob
-        self.sum_to_1 = sum_to_1
         self.solution: Optional[RegretOptimizerSolution] = None
         self.result: Optional[RegretResult] = None
         self.max_attempts = max_attempts
@@ -168,9 +167,6 @@ class OptimizationOperation:
 
         model = BaseOptimizer(builder.num_scenarios)
         model.set_min_objective(regret)
-
-        if self.sum_to_1:
-            model.add_equality_constraint(lambda x: sum(x) - 1)
 
         model.set_bounds(0, 1)
         proportions = self._optimize(model,

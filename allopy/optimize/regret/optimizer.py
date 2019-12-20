@@ -146,6 +146,7 @@ class RegretOptimizer:
             {},
             {},
             {},
+            sum_to_1,
             validate_tolerance(xtol_abs or get_option('EPS.X_ABS')),
             validate_tolerance(xtol_rel or get_option('EPS.X_REL')),
             validate_tolerance(ftol_abs or get_option('EPS.F_ABS')),
@@ -160,7 +161,6 @@ class RegretOptimizer:
         # result formatting options
         self._result = None
         self._solution = None
-        self.sum_to_1 = sum_to_1
 
         assert isinstance(max_attempts, int) and max_attempts > 0, 'max_attempts must be an integer >= 1'
         self._max_attempts = max_attempts
@@ -225,6 +225,15 @@ class RegretOptimizer:
         self.upper_bounds = ub
 
         return self
+
+    @property
+    def sum_to_1(self):
+        return self._mb.sum_to_1
+
+    @sum_to_1.setter
+    def sum_to_1(self, value: bool):
+        assert isinstance(value, bool), "sum_to_1 must be a boolean value"
+        self._mb.sum_to_1 = value
 
     def set_max_objective(self, functions: List[Callable]):
         """
@@ -427,7 +436,7 @@ class RegretOptimizer:
         ndarray
             Optimal solution weights
         """
-        opt = OptimizationOperation(self._mb, self.prob, self.sum_to_1, self.max_attempts, self.verbose) \
+        opt = OptimizationOperation(self._mb, self.prob, self.max_attempts, self.verbose) \
             .optimize(x0_first_level, x0_prop, initial_solution, approx, dist_func, random_state)
 
         self._result = opt.result

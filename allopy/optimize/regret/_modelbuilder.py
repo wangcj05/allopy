@@ -21,6 +21,7 @@ class ModelBuilder:
                  ineq_constraints,
                  matrix_eq_constraints,
                  matrix_ineq_constraints,
+                 sum_to_1: bool,
                  x_tol_abs: float,
                  x_tol_rel: float,
                  f_tol_abs: float,
@@ -51,6 +52,7 @@ class ModelBuilder:
         self.max_eval = max_eval
         self.c_eps = c_eps
         self.verbose = verbose
+        self.sum_to_1 = sum_to_1
 
     def __call__(self, index: int):
         """Creates the individual optimization model for the first step"""
@@ -80,6 +82,9 @@ class ModelBuilder:
                                             (self._hin.values(), model.add_inequality_constraint)]:
             for c in constraints:
                 set_constraint(c[index], self.c_eps)
+
+        if self.sum_to_1:
+            model.add_equality_constraint(lambda x: sum(x) - 1)
 
         # sets up the objective function
         assert self.max_or_min in ('maximize', 'minimize') and len(self._obj_funcs) == self.num_scenarios, \
