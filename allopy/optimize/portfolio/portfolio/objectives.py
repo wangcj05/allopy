@@ -6,34 +6,30 @@ class ObjectiveBuilder(AbstractObjectiveBuilder):
     def max_cvar(self, percentile: float):
         """Maximizes the CVaR. This means that we're minimizing the losses"""
 
-        def _obj_max_cvar(w):
-            fv = self.cvar_data.cvar(w, self.rebalance, percentile)
-            return (fv - self.penalty(w)) * get_option("F.SCALE")
+        def objective(w):
+            return (self.cvar_data.cvar(w, self.rebalance, percentile) - self.penalty(w)) * get_option("F.SCALE")
 
-        return _obj_max_cvar
+        return objective
 
     @property
     def max_returns(self):
         """Objective function to maximize the returns"""
 
-        def _obj_max_returns(w):
-            fv = self.data.expected_return(w, self.rebalance)
-            return (fv - self.penalty(w)) * get_option("F.SCALE")
+        def objective(w):
+            return (self.data.expected_return(w, self.rebalance) - self.penalty(w)) * get_option("F.SCALE")
 
-        return _obj_max_returns
+        return objective
 
     @property
     def max_sharpe_ratio(self):
-        def _obj_max_sharpe_ratio(w):
-            fv = self.data.sharpe_ratio(w, self.rebalance)
-            return (fv - self.penalty(w)) * get_option("F.SCALE")
+        def objective(w):
+            return (self.data.sharpe_ratio(w, self.rebalance) - self.penalty(w)) * get_option("F.SCALE")
 
-        return _obj_max_sharpe_ratio
+        return objective
 
     @property
     def min_vol(self):
-        def _obj_min_vol(w):
-            fv = self.data.volatility(w)
-            return (fv + self.penalty(w)) * get_option("F.SCALE")
+        def objective(w):
+            return (self.data.volatility(w) + self.penalty(w)) * get_option("F.SCALE")
 
-        return _obj_min_vol
+        return objective

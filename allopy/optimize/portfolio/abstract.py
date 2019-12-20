@@ -6,7 +6,7 @@ import numpy as np
 from nlopt import RoundoffLimited
 
 from allopy import OptData
-from allopy.penalty import Penalty
+from allopy.penalty import NoPenalty, Penalty
 from allopy.types import OptArray
 from ..algorithms import LD_SLSQP
 from ..base import BaseOptimizer
@@ -115,15 +115,11 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
 
     @property
     def penalty(self):
-        return self._objectives.penalty_class
+        return self._objectives.penalty
 
     @penalty.setter
     def penalty(self, penalty: Optional[PenaltyClass]):
-        self._objectives.penalty_class = penalty
-
-    @penalty.deleter
-    def penalty(self):
-        del self._objectives.penalty_class
+        self._objectives.penalty = penalty
 
     def optimize(self,
                  x0: OptArray = None,
@@ -158,28 +154,21 @@ class AbstractObjectiveBuilder(ABC):
         self.data = data
         self.cvar_data = cvar_data
         self.rebalance = rebalance
-        self._penalty: Optional[PenaltyClass] = None
-
-    def penalty(self, w: np.ndarray):
-        if self._penalty is None:
-            return 0.0
-        return self._penalty.cost(w)
+        self._penalty = NoPenalty(data.n_assets)
 
     @property
-    def penalty_class(self):
+    def penalty(self):
         return self._penalty
 
-    @penalty_class.setter
-    def penalty_class(self, penalty):
+    @penalty.setter
+    def penalty(self, penalty):
         assert isinstance(penalty, Penalty) or penalty is None, "value must subclass the Penalty class or be None"
-        if penalty is not None:
+
+        if penalty is None:
+            self._penalty = NoPenalty(self.data.n_assets)
+        else:
             assert penalty.dim == self.data.n_assets, "dimension of the penalty does not match the data"
-
-        self._penalty = penalty
-
-    @penalty_class.deleter
-    def penalty_class(self):
-        self._penalty = None
+            self._penalty = penalty
 
 
 class AbstractConstraintBuilder(ABC):

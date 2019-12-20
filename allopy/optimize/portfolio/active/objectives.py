@@ -4,45 +4,40 @@ from ..abstract import AbstractObjectiveBuilder
 
 class ObjectiveBuilder(AbstractObjectiveBuilder):
     def max_cvar(self, active_cvar: bool, percentile: float):
-        def _obj_max_cvar(w):
+        def objective(w):
             w = self._format_weights(w, active_cvar)
-            fv = self.cvar_data.cvar(w, self.rebalance, percentile)
-            return (fv - self.penalty(w)) * get_option("F.SCALE")
+            return (self.cvar_data.cvar(w, self.rebalance, percentile) - self.penalty(w)) * get_option("F.SCALE")
 
-        return _obj_max_cvar
+        return objective
 
     @property
     def max_returns(self):
-        def _obj_max_returns(w):
-            fv = self.data.expected_return(w, self.rebalance)
-            return (fv - self.penalty(w)) * get_option("F.SCALE")
+        def objective(w):
+            return (self.data.expected_return(w, self.rebalance) - self.penalty(w)) * get_option("F.SCALE")
 
-        return _obj_max_returns
+        return objective
 
     @property
     def max_sharpe_ratio(self):
-        def _obj_max_sharpe_ratio(w):
-            fv = self.data.sharpe_ratio(w, self.rebalance)
-            return (fv - self.penalty(w)) * get_option("F.SCALE")
+        def objective(w):
+            return (self.data.sharpe_ratio(w, self.rebalance) - self.penalty(w)) * get_option("F.SCALE")
 
-        return _obj_max_sharpe_ratio
+        return objective
 
     @property
     def max_info_ratio(self):
-        def _obj_max_info_ratio(w):
+        def objective(w):
             w = self._format_weights(w, True)
-            fv = self.data.sharpe_ratio(w, self.rebalance)
-            return (fv - self.penalty(w)) * get_option("F.SCALE")
+            return (self.data.sharpe_ratio(w, self.rebalance) - self.penalty(w)) * get_option("F.SCALE")
 
-        return _obj_max_info_ratio
+        return objective
 
     def min_volatility(self, is_tracking_error: bool):
-        def _obj_min_tracking_error(w):
+        def objective(w):
             w = self._format_weights(w, remove_first_value=is_tracking_error)
-            fv = self.data.volatility(w)
-            return (fv + self.penalty(w)) * get_option("F.SCALE")
+            return (self.data.volatility(w) + self.penalty(w)) * get_option("F.SCALE")
 
-        return _obj_min_tracking_error
+        return objective
 
     @staticmethod
     def _format_weights(w, remove_first_value: bool):
