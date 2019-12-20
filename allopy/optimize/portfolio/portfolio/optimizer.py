@@ -174,6 +174,7 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
                       min_ret: OptReal = None,
                       x0: OptArray = None,
                       *,
+                      percentile=5.0,
                       tol=0.0,
                       initial_solution: Optional[str] = "random",
                       random_state: Optional[int] = None) -> np.ndarray:
@@ -193,6 +194,10 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
         x0: ndarray
             Initial vector. Starting position for free variables
 
+        percentile: float
+            The CVaR percentile value for the objective. This means to the expected shortfall will be calculated
+            from values below this threshold
+
         tol: float
             A tolerance for the constraints in judging feasibility for the purposes of stopping the optimization
 
@@ -211,7 +216,7 @@ class PortfolioOptimizer(AbstractPortfolioOptimizer):
         if min_ret is not None:
             self.add_inequality_constraint(self._constraints.min_returns(min_ret), tol)
 
-        self.set_max_objective(self._objectives.max_cvar)
+        self.set_max_objective(self._objectives.max_cvar(percentile))
         return self.optimize(x0, initial_solution=initial_solution, random_state=random_state)
 
     def maximize_sharpe_ratio(self,

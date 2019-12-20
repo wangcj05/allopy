@@ -21,7 +21,7 @@ class ConstraintBuilder(AbstractConstraintBuilder):
         return _ctr_max_cvar
 
     def min_returns(self, min_ret: float):
-        """Minimim returns constraint. This is used when objective is to minimize risk st to some minimum returns"""
+        """Minimum returns constraint. This is used when objective is to minimize risk st to some minimum returns"""
 
         def _ctr_min_returns(w):
             return get_option("F.SCALE") * (min_ret - self.data.expected_return(w, self.rebalance))

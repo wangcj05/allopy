@@ -3,10 +3,10 @@ from ..abstract import AbstractObjectiveBuilder
 
 
 class ObjectiveBuilder(AbstractObjectiveBuilder):
-    def max_cvar(self, active_cvar: bool):
+    def max_cvar(self, active_cvar: bool, percentile: float):
         def _obj_max_cvar(w):
             w = self._format_weights(w, active_cvar)
-            fv = self.cvar_data.cvar(w, self.rebalance)
+            fv = self.cvar_data.cvar(w, self.rebalance, percentile)
             return (fv - self.penalty(w)) * get_option("F.SCALE")
 
         return _obj_max_cvar

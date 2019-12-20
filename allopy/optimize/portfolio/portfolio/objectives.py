@@ -3,12 +3,11 @@ from ..abstract import AbstractObjectiveBuilder
 
 
 class ObjectiveBuilder(AbstractObjectiveBuilder):
-    @property
-    def max_cvar(self):
-        """Maximizes the CVaR. This means that we're minizming the losses"""
+    def max_cvar(self, percentile: float):
+        """Maximizes the CVaR. This means that we're minimizing the losses"""
 
         def _obj_max_cvar(w):
-            fv = self.cvar_data.cvar(w, self.rebalance)
+            fv = self.cvar_data.cvar(w, self.rebalance, percentile)
             return (fv - self.penalty(w)) * get_option("F.SCALE")
 
         return _obj_max_cvar

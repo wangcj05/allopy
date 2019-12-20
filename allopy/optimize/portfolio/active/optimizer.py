@@ -17,6 +17,7 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
                  cvar_data: Optional[Union[np.ndarray, OptData]] = None,
                  rebalance=False,
                  time_unit='quarterly',
+                 sum_to_1=False,
                  *args,
                  **kwargs):
         """
@@ -60,6 +61,9 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
             represents a month, set this to 12. If quarterly, set to 4. Defaults to 12 which means 1 period represents
             a month. Alternatively, specify one of 'monthly', 'quarterly', 'semi-annually' or 'yearly'
 
+        sum_to_1: bool
+            If False, the weights do not need to sum to 1. This should be False for active optimizer.
+
         args:
             other arguments to pass to the :class:`BaseOptimizer`
 
@@ -72,7 +76,7 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         :class:`BaseOptimizer`: Base Optimizer
         :class:`OptData`: Optimizer data wrapper
         """
-        super().__init__(data, algorithm, cvar_data, rebalance, time_unit, sum_to_1=False, *args, **kwargs)
+        super().__init__(data, algorithm, cvar_data, rebalance, time_unit, sum_to_1=sum_to_1, *args, **kwargs)
         self._objectives = ObjectiveBuilder(self.data, self.cvar_data, rebalance)
         self._constraints = ConstraintBuilder(self.data, self.cvar_data, rebalance)
 
@@ -202,7 +206,7 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         self.set_min_objective(self._objectives.min_volatility(is_tracking_error=False))
         return self.optimize(x0)
 
-    def minimize_cvar(self, min_ret: OptReal = None, x0: OptArray = None, *, as_active_cvar=False,
+    def minimize_cvar(self, min_ret: OptReal = None, x0: OptArray = None, *, percentile=5.0, as_active_cvar=False,
                       as_active_return=False, tol=0.0) -> np.ndarray:
         """
         Minimizes the conditional value at risk of the portfolio. The present implementation actually minimizes the
@@ -218,6 +222,10 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
 
         x0: ndarray
             Initial vector. Starting position for free variables
+
+        percentile: float
+            The CVaR percentile value for the objective. This means to the expected shortfall will be calculated
+            from values below this threshold
 
         as_active_cvar: bool, optional
             If True, minimizes the active cvar instead of the entire portfolio cvar. If False, minimizes the entire
@@ -239,7 +247,7 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         if min_ret is not None:
             self.add_inequality_constraint(self._constraints.min_returns(min_ret, as_active_return), tol)
 
-        self.set_max_objective(self._objectives.max_cvar(as_active_cvar))
+        self.set_max_objective(self._objectives.max_cvar(as_active_cvar, percentile))
         return self.optimize(x0)
 
     def maximize_info_ratio(self, x0: OptArray = None) -> np.ndarray:
