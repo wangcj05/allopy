@@ -63,8 +63,8 @@ class UncertaintyPenalty(Penalty):
         if method == "direct":
             return value
         else:
-            assert 0 <= value <= 1, "lambda_ (alpha) parameter must be between 0 and 1 (inclusive) if using 'chi2'"
-            return chi2.ppf(value, dim - 1)
+            assert 0 < value <= 1, "lambda_ (alpha) parameter must be between 0 and 1 (inclusive) if using 'chi2'"
+            return 1 / chi2.ppf(value, dim - 1)
 
     @staticmethod
     def _derive_uncertainty(uncertainty: np.ndarray):
