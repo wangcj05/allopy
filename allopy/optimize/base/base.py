@@ -102,8 +102,8 @@ class BaseOptimizer:
         In general, it is a tough problem to find a feasible solution in high-dimensional spaces, much more
         an optimal one. Thus use the random initial solution at your own risk.
 
-        Notes - Initial Solution
-        ------------------------
+        Initial Solution
+        ~~~~~~~~~~~~~~~~
         The following lists the options for finding an initial solution for the optimization problem. It is best if
         the user supplies an initial value instead of using the heuristics provided if the user already knows the
         region to search.

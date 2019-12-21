@@ -21,6 +21,7 @@ Presently, **Continuous State Uncertainty optimizers** are not implemented in th
 
     Regret Optimizer <regret>
     Portfolio Regret Optimizer <portfolio-regret>
+    Active Portfolio Regret Optimizer <active-portfolio-regret>
 
 
 Algorithms

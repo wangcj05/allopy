@@ -8,7 +8,7 @@ from .abstract import Penalty
 
 class UncertaintyPenalty(Penalty):
     def __init__(self, uncertainty: Union[Iterable[Union[int, float]], np.ndarray],
-                 lambda_: float = 0.95,
+                 alpha: float = 0.95,
                  method='direct'):
         r"""
         The uncertainty penalty. It penalizes the objective function relative to the level of uncertainty for the
@@ -29,7 +29,8 @@ class UncertaintyPenalty(Penalty):
         .. math::
             \lambda = \frac{1}{\chi^2_{n - 1}(\alpha)}
 
-        where :math:`n` is the number of asset classes and :math:`\alpha` is the confidence interval
+        where :math:`n` is the number of asset classes and :math:`\alpha` is the confidence interval. Otherwise
+        the "direct" method will have :math:`\lambda = \alpha`.
 
         Parameters
         ----------
@@ -37,21 +38,27 @@ class UncertaintyPenalty(Penalty):
             A 1D vector or 2D matrix representing the uncertainty for the given asset class. If a 1D vector is
             provided, it will be converted to a diagonal matrix
 
-        lambda_:
+        alpha:
             A constant controlling the intensity of the penalty
 
         method: "chi2" or "direct"
-            Method used to construct the lambda parameter. If "direct", the exact value specified by the lambda_
+            Method used to construct the lambda parameter. If "direct", the exact value specified by the `alpha`
             parameter is used. If "chi2", the value is determined using the inverse of the chi-square quantile
-            function. In that instance, the lambda_ parameter will be the confidence level. See Notes.
+            function. In that instance, the `alpha` parameter will be the confidence level. See Notes.
         """
         self._uncertainty = self._derive_uncertainty(np.asarray(uncertainty))
         self.dim = len(self._uncertainty)
         self._method = method.lower()
-        self._lambda = self._derive_lambda(lambda_, self._method, self.dim)
+        self._alpha = self._derive_lambda(alpha, self._method, self.dim)
 
     def cost(self, w: np.ndarray) -> float:
-        return self._lambda * (w @ self._uncertainty @ w) ** 0.5
+        r"""
+        Calculates the penalty to apply
+
+        .. math::
+            p(w) = \lambda \sqrt{w^T \Phi w}
+        """
+        return self._alpha * (w @ self._uncertainty @ w) ** 0.5
 
     @property
     def uncertainty(self):
@@ -79,7 +86,7 @@ class UncertaintyPenalty(Penalty):
 
         return f"""
 UncertaintyPenalty(
-    lambda={self._lambda},
+    lambda={self._alpha},
     uncertainty={arr},
     method={self._method}
 )        

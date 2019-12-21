@@ -8,4 +8,5 @@ Uncertainty in this instance does not mean the risk (or variance). Rather, it si
 .. toctree::
     :caption: Penalty Classes
 
-    Uncertainty Penalty <uncertainty>
+    NoPenalty <noop>
+    UncertaintyPenalty <uncertainty>
