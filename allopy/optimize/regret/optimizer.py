@@ -139,13 +139,6 @@ class RegretOptimizer:
             num_assets,
             num_scenarios,
             algorithm,
-            [],
-            None,
-            None,
-            {},
-            {},
-            {},
-            {},
             sum_to_1,
             validate_tolerance(xtol_abs or get_option('EPS.X_ABS')),
             validate_tolerance(xtol_rel or get_option('EPS.X_REL')),
@@ -464,30 +457,30 @@ class RegretOptimizer:
         return self._solution
 
     def set_meta(self, *,
-                 asset_names: Optional[List[str]] = None,
-                 scenario_names: Optional[List[str]] = None):
+                 assets: Optional[List[str]] = None,
+                 scenarios: Optional[List[str]] = None):
         """
         Sets meta data which will be used for result summary
 
         Parameters
         ----------
-        asset_names: list of str, optional
+        assets: list of str, optional
             Names of each asset class
 
-        scenario_names: list of str, optional
+        scenarios: list of str, optional
             Names of each scenario
         """
-        if scenario_names:
-            self._result.scenario_names = scenario_names
+        if scenarios:
+            self._result.scenarios = scenarios
 
-        if asset_names:
-            self._result.asset_names = asset_names
+        if assets:
+            self._result.assets = assets
 
         return self
 
     @property
     def scenario_names(self):
-        return self._result.scenario_names
+        return self._result.scenarios
 
     @scenario_names.setter
     def scenario_names(self, value: List[str]):
@@ -497,7 +490,7 @@ class RegretOptimizer:
         value = list(set([str(i) for i in value]))
         assert len(value) == self._num_scenarios, error
 
-        self._result.scenario_names = value
+        self._result.scenarios = value
 
     def summary(self):
         return RegretSummary(self._result)

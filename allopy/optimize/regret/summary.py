@@ -23,16 +23,16 @@ class RegretSummary(Summary):
 
     def _add_scenario_optimal_weights(self):
         self.add_df(pd.DataFrame(
-            {s: w for s, w in zip(self.result.scenario_names, self.result.scenario_solutions)},
-            self.result.asset_names)
+            {s: w for s, w in zip(self.result.scenarios, self.result.scenario_solutions)},
+            self.result.assets)
         )
 
     def _add_final_weights(self):
-        self.add_df(pd.DataFrame({"Weight": self.result.solution}, self.result.asset_names))
+        self.add_df(pd.DataFrame({"Weight": self.result.solution}, self.result.assets))
 
     def _add_scenario_proportions(self):
         if self.result.proportions is not None:
             self.add_df(pd.DataFrame({
-                "Scenario": self.result.scenario_names,
+                "Scenario": self.result.scenarios,
                 "Proportion (%)": self.result.proportions.round(4) * 100
             }))

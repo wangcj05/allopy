@@ -49,16 +49,7 @@ class OptimizationOperation:
             props, weights = self._optimize_actual(x0_prop, solutions, dist_func, initial_solution)
 
         self.solution = RegretOptimizerSolution(weights, solutions, props)
-        self.result = RegretResult(num_assets,
-                                   num_scenarios,
-                                   weights,
-                                   solutions,
-                                   props,
-                                   mb.hin,
-                                   mb.heq,
-                                   mb.min,
-                                   mb.meq,
-                                   mb.c_eps)
+        self.result = RegretResult(self.builder, weights, solutions, props, mb.c_eps)
 
         return self
 
@@ -121,9 +112,10 @@ class OptimizationOperation:
         model.set_min_objective(regret)
         model.set_bounds(builder.lower_bounds, builder.upper_bounds)
 
-        for constraints, set_constraint in [(builder.meq.values(), model.add_equality_matrix_constraint),
-                                            (builder.min.values(), model.add_inequality_matrix_constraint)]:
-            for c in constraints:
+        constraints = builder.constraints
+        for cs, set_constraint in [(constraints.m_equality.values(), model.add_equality_matrix_constraint),
+                                   (constraints.m_inequality.values(), model.add_inequality_matrix_constraint)]:
+            for c in cs:
                 set_constraint(c, builder.c_eps)
 
         return None, self._optimize(model,

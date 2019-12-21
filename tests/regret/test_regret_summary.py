@@ -11,5 +11,5 @@ def test_regret_optimizer_summary(config, assets, scenarios, main_cubes, cvar_cu
     opt.set_bounds(config.lb.as_array(), config.ub.as_array())
 
     opt.maximize_returns(max_cvar=config.cvar.as_array())
-    opt.set_meta(asset_names=assets, scenario_names=scenarios)
+    opt.set_meta(assets=assets, scenarios=scenarios)
     assert isinstance(opt.summary(), RegretSummary)
