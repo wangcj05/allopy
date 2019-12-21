@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Iterable, Optional, Union
+from typing import Callable, Optional, Union
 
 import nlopt as nl
 import numpy as np
@@ -150,7 +150,10 @@ class BaseOptimizer:
 
         if x0 is None:
             x0 = self._initial_points(initial_solution, random_state)
-        x0 = self._set_x0_within_bounds(x0)
+        else:  # keep x within bounds
+            x0 = np.asarray(x0)
+            x0[x0 > self.upper_bounds] = self.upper_bounds[x0 > self.upper_bounds]
+            x0[x0 < self.lower_bounds] = self.lower_bounds[x0 < self.lower_bounds]
 
         sol = self._model.optimize(x0, *args)
         if sol is not None:
@@ -596,12 +599,6 @@ class BaseOptimizer:
             return gen.min_constraint(cmap.equality.values(), cmap.inequality.values())
         else:
             raise ValueError(f"Unknown initial solution method '{method}'. Check the docs for valid methods")
-
-    def _set_x0_within_bounds(self, x0: Iterable[float]):
-        x0 = np.asarray(x0)
-        x0[x0 > self.upper_bounds] = self.upper_bounds[x0 > self.upper_bounds]
-        x0[x0 < self.lower_bounds] = self.lower_bounds[x0 < self.lower_bounds]
-        return x0
 
     def _set_gradient(self, fn: ConstraintFunc):
         assert callable(fn), "Argument must be a function"
