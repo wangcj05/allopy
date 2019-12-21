@@ -7,7 +7,9 @@ from copulae.types import Numeric
 
 from allopy import get_option
 from allopy.types import OptArray, OptNumeric
-from .result import ConstraintMap, Result
+from .constraint import ConstraintFunc, ConstraintMap
+from .initial_points import InitialPointGenerator
+from .result import Result
 from .summary import Summary
 from ..algorithms import LD_SLSQP, has_gradient, map_algorithm
 from ..utils import *
@@ -18,11 +20,6 @@ Tolerance = Union[int, float, np.ndarray, None]
 
 
 class BaseOptimizer:
-    _A: np.ndarray
-    _b: np.ndarray
-    _Aeq: np.ndarray
-    _beq: np.ndarray
-
     def __init__(self, n: int, algorithm=LD_SLSQP, *args, **kwargs):
         """
         The BaseOptimizer is the raw optimizer with minimal support. For advanced users, this class will provide
@@ -61,8 +58,7 @@ class BaseOptimizer:
         self.set_ftol_rel(get_option('EPS.F_REL'))
         self.set_maxeval(get_option('MAX.EVAL'))
 
-        self._hin: ConstraintMap = {}
-        self._heq: ConstraintMap = {}
+        self._cmap = ConstraintMap()
         self._result: Optional[Result] = None
         self._max_or_min = None
         self._verbose = kwargs.get('verbose', False)
@@ -158,7 +154,7 @@ class BaseOptimizer:
 
         sol = self._model.optimize(x0, *args)
         if sol is not None:
-            self._result = Result(self._hin, self._heq, sol, self._eps)
+            self._result = Result(self._cmap, sol, self._eps)
             return self._result.x
         else:
             if self._verbose:
@@ -215,7 +211,7 @@ class BaseOptimizer:
 
         return self
 
-    def add_inequality_constraint(self, fn: Callable, tol=None):
+    def add_inequality_constraint(self, fn: ConstraintFunc, tol=None):
         """
         Adds the equality constraint function in standard form, A <= b. If the gradient of the constraint function is
         not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
@@ -223,7 +219,7 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        fn: Callable
+        fn
             Constraint function
 
         tol: float, optional
@@ -236,11 +232,11 @@ class BaseOptimizer:
         """
         tol = self._c_eps if tol is None else tol
 
-        self._hin[fn.__name__] = fn
+        self._cmap.add_inequality_constraint(fn)
         self._model.add_inequality_constraint(self._set_gradient(fn), tol)
         return self
 
-    def add_equality_constraint(self, fn: Callable, tol=None):
+    def add_equality_constraint(self, fn: ConstraintFunc, tol=None):
         """
         Adds the equality constraint function in standard form, A = b. If the gradient of the constraint function
         is not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
@@ -248,7 +244,7 @@ class BaseOptimizer:
 
         Parameters
         ----------
-        fn: Callable
+        fn
             Constraint function
 
         tol: float, optional
@@ -261,7 +257,7 @@ class BaseOptimizer:
         """
         tol = self._c_eps if tol is None else tol
 
-        self._heq[fn.__name__] = fn
+        self._cmap.add_equality_constraint(fn)
         self._model.add_equality_constraint(self._set_gradient(fn), tol)
         return self
 
@@ -292,10 +288,11 @@ class BaseOptimizer:
         A, b = validate_matrix_constraints(A, b)
 
         for i, row, _b in zip(range(len(b)), A, b):
-            fn = create_matrix_constraint(row, _b)
+            fn = create_matrix_constraint(row, _b, f"A_{i}")
+            self._cmap.add_inequality_constraint(fn)
+
             f = create_gradient_func(fn, self._eps)
             self._model.add_inequality_constraint(f, tol)
-            self._hin[f'A_{i}'] = fn
 
         return self
 
@@ -326,10 +323,11 @@ class BaseOptimizer:
         Aeq, beq = validate_matrix_constraints(Aeq, beq)
 
         for i, row, _beq in zip(range(len(beq)), Aeq, beq):
-            fn = create_matrix_constraint(row, _beq)
+            fn = create_matrix_constraint(row, _beq, f"A_{i}")
+            self._cmap.add_equality_constraint(fn)
+
             f = create_gradient_func(fn, self._eps)
             self._model.add_equality_constraint(f, tol)
-            self._heq[f'Aeq_{i}'] = fn
 
         return self
 
@@ -565,8 +563,8 @@ class BaseOptimizer:
         prog_setup = [
             ('objective', self._max_or_min),
             ('n_var', self._n),
-            ('n_eq_con', len(self._heq)),
-            ('n_ineq_con', len(self._hin)),
+            ('n_eq_con', len(self._cmap.equality)),
+            ('n_ineq_con', len(self._cmap.inequality)),
         ]
 
         opt_setup = [
@@ -589,32 +587,13 @@ class BaseOptimizer:
         return smry
 
     def _initial_points(self, method: str, random_state):
-        def generate_random_starting_points():
-            if isinstance(random_state, int):
-                np.random.seed(random_state)
-
-            if np.isinf(self.lower_bounds).any() or np.isinf(self.upper_bounds).any():
-                return np.random.uniform(size=self._n)
-            else:
-                return np.random.uniform(self.lower_bounds, self.upper_bounds)
-
-        def min_constraint():
-            model = BaseOptimizer(self._n)
-            model.set_bounds(self.lower_bounds, self.upper_bounds)
-
-            eq_cstr = list(self._heq.values())
-            in_cstr = list(self._hin.values())
-
-            def obj_fun(w):
-                return (sum([1e5 * f(w) ** 2 for f in eq_cstr]) + sum([f(w) ** 2 for f in in_cstr])) ** 0.5
-
-            model.set_min_objective(obj_fun)
-            return model.optimize(generate_random_starting_points())
+        gen = InitialPointGenerator(self._n, self.lower_bounds, self.upper_bounds)
 
         if method.lower() == "random":
-            return generate_random_starting_points()
+            return gen.random_starting_points(random_state)
         elif method.lower() == "min_constraint_norm":
-            return min_constraint()
+            cmap = self._cmap
+            return gen.min_constraint(cmap.equality.values(), cmap.inequality.values())
         else:
             raise ValueError(f"Unknown initial solution method '{method}'. Check the docs for valid methods")
 
@@ -624,7 +603,7 @@ class BaseOptimizer:
         x0[x0 < self.lower_bounds] = self.lower_bounds[x0 < self.lower_bounds]
         return x0
 
-    def _set_gradient(self, fn: Callable):
+    def _set_gradient(self, fn: ConstraintFunc):
         assert callable(fn), "Argument must be a function"
 
         if self._auto_grad and len(inspect.signature(fn).parameters) == 1:

@@ -17,9 +17,12 @@ def create_gradient_func(fn, eps):
     return f
 
 
-def create_matrix_constraint(a, b):
+def create_matrix_constraint(a, b, name: str = None):
     def fn(w):
         return a @ w - b
+
+    if name is not None:
+        fn.__name__ = name
 
     return fn
 
