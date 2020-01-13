@@ -8,7 +8,7 @@ __all__ = ["create_gradient_func",
            "validate_tolerance"]
 
 
-def create_gradient_func(fn, eps):
+def create_gradient_func(fn, eps) -> Callable[[np.ndarray, np.ndarray], float]:
     def f(w, grad):
         diag = np.eye(len(w)) * eps
         if grad.size > 0:
