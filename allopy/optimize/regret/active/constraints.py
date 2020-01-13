@@ -12,7 +12,7 @@ class ConstraintBuilder(AbstractConstraintBuilder):
         def constraint_creator(d: OptData, vol: float):
             def constraint(w):
                 w = format_weights(w, as_tracking_error)
-                return get_option("F.SCALE") * (d.volatility(w) - vol)
+                return get_option("C.SCALE") * (d.volatility(w) - vol)
 
             return constraint
 
@@ -25,7 +25,7 @@ class ConstraintBuilder(AbstractConstraintBuilder):
         def constraint_creator(d: OptData, cvar: float):
             def constraint(w):
                 w = format_weights(w, as_active_cvar)
-                return get_option("F.SCALE") * (cvar - d.cvar(w, self.rebalance, percentile))
+                return get_option("C.SCALE") * (cvar - d.cvar(w, self.rebalance, percentile))
 
             return constraint
 
@@ -38,7 +38,7 @@ class ConstraintBuilder(AbstractConstraintBuilder):
         def constraint_creator(d: OptData, ret: float):
             def constraint(w):
                 w = format_weights(w, as_active_returns)
-                return get_option("F.SCALE") * (ret - d.expected_return(w, self.rebalance))
+                return get_option("C.SCALE") * (ret - d.expected_return(w, self.rebalance))
 
             return constraint
 

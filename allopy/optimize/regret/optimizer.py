@@ -320,7 +320,8 @@ class RegretOptimizer:
         b: {scalar, ndarray}
             Inequality vector or scalar. If scalar, it will be propagated.
         """
-        self._mb.add_inequality_matrix_constraints(A, b)
+        s = get_option("C.SCALE")
+        self._mb.add_inequality_matrix_constraints(A * s, b * s)
         return self
 
     def add_equality_matrix_constraint(self, Aeq, beq):
@@ -337,7 +338,8 @@ class RegretOptimizer:
         beq: {scalar, ndarray}
             Equality vector or scalar. If scalar, it will be propagated
         """
-        self._mb.add_equality_matrix_constraints(Aeq, beq)
+        s = get_option("C.SCALE")
+        self._mb.add_equality_matrix_constraints(Aeq * s, beq * s)
         return self
 
     def optimize(self,

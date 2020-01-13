@@ -8,7 +8,7 @@ class ConstraintBuilder(AbstractConstraintBuilder):
 
         def _ctr_max_vol(w):
             w = self._active_weights(w, as_tracking_error)
-            return get_option("F.SCALE") * (self.data.volatility(w) - max_vol)
+            return get_option("C.SCALE") * (self.data.volatility(w) - max_vol)
 
         return _ctr_max_vol
 
@@ -17,7 +17,7 @@ class ConstraintBuilder(AbstractConstraintBuilder):
 
         def _ctr_max_cvar(w):
             w = self._active_weights(w, as_active_cvar)
-            return get_option("F.SCALE") * (max_cvar - self.cvar_data.cvar(w, self.rebalance, percentile))
+            return get_option("C.SCALE") * (max_cvar - self.cvar_data.cvar(w, self.rebalance, percentile))
 
         return _ctr_max_cvar
 
@@ -26,7 +26,7 @@ class ConstraintBuilder(AbstractConstraintBuilder):
 
         def _ctr_min_returns(w):
             w = self._active_weights(w, as_active_returns)
-            return get_option("F.SCALE") * (min_ret - self.data.expected_return(w, self.rebalance))
+            return get_option("C.SCALE") * (min_ret - self.data.expected_return(w, self.rebalance))
 
         return _ctr_min_returns
 

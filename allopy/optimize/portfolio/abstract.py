@@ -5,7 +5,7 @@ from typing import TypeVar
 import numpy as np
 from nlopt import RoundoffLimited
 
-from allopy import OptData
+from allopy import OptData, get_option
 from allopy.penalty import NoPenalty, Penalty
 from allopy.types import OptArray
 from ..algorithms import LD_SLSQP
@@ -147,6 +147,14 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
             if self._verbose:
                 print('No solution was found for the given problem. Check the summary() for more information')
             return np.repeat(np.nan, self.data.n_assets)
+
+    def add_equality_matrix_constraint(self, Aeq, beq, tol=None):
+        s = get_option("C.SCALE")
+        return super().add_equality_matrix_constraint(Aeq * s, beq * s, tol)
+
+    def add_inequality_matrix_constraint(self, A, b, tol=None):
+        s = get_option("C.SCALE")
+        return super().add_equality_matrix_constraint(A * s, b * s, tol)
 
 
 class AbstractObjectiveBuilder(ABC):
