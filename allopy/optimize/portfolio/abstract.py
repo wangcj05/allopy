@@ -154,7 +154,7 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
 
     def add_inequality_matrix_constraint(self, A, b, tol=None):
         s = get_option("C.SCALE")
-        return super().add_equality_matrix_constraint(A * s, b * s, tol)
+        return super().add_inequality_matrix_constraint(A * s, b * s, tol)
 
 
 class AbstractObjectiveBuilder(ABC):
