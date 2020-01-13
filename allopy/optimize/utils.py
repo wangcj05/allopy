@@ -1,3 +1,5 @@
+from typing import Callable
+
 import numpy as np
 
 __all__ = ["create_gradient_func",
@@ -17,7 +19,7 @@ def create_gradient_func(fn, eps):
     return f
 
 
-def create_matrix_constraint(a, b, name: str = None):
+def create_matrix_constraint(a, b, name: str = None) -> Callable[[np.ndarray], float]:
     def fn(w):
         return a @ w - b
 

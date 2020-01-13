@@ -66,9 +66,13 @@ class ModelBuilder:
                 set_option(item)
 
         # sets constraints
-        for constraints, set_constraint in [(self.constraints.equality.values(), model.add_equality_constraint),
-                                            (self.constraints.inequality.values(), model.add_inequality_constraint)]:
-            for c in constraints:
+        for constraints, set_constraint in [
+            (self.constraints.equality, model.add_equality_constraint),
+            (self.constraints.inequality, model.add_inequality_constraint),
+            (self.constraints.m_equality, model.add_equality_matrix_constraint),
+            (self.constraints.m_inequality, model.add_inequality_matrix_constraint)
+        ]:  # type: dict, callable
+            for c in constraints.values():
                 set_constraint(c[index], self.c_eps)
 
         if self.sum_to_1:
