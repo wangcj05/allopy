@@ -174,7 +174,7 @@ class RegretOptimizer:
 
     @property
     def lower_bounds(self):
-        """Lower bound of each variable"""
+        """Lower bound of each variable for all the optimization models in the first and second stages"""
         return self._mb.lower_bounds
 
     @lower_bounds.setter
@@ -188,7 +188,7 @@ class RegretOptimizer:
 
     @property
     def upper_bounds(self):
-        """Upper bound of each variable"""
+        """Upper bound of each variable for all the optimization models in the first and second stages"""
         return self._mb.upper_bounds
 
     @upper_bounds.setter

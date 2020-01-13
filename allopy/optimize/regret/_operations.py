@@ -97,8 +97,7 @@ class OptimizationOperation:
 
         initial_solution: str, optional
             The method to find the initial solution if the initial vector :code:`x0` is not specified. Set as
-            :code:`None` to disable. However, if disabled, the initial vector must be supplied. See notes on
-            Initial Solution for more information
+            :code:`None` to disable. However, if disabled, the initial vector must be supplied.
         """
         builder = self.builder
         f_values = np.array(f(s) for f, s in zip(builder.obj_funcs, solutions))
@@ -112,12 +111,6 @@ class OptimizationOperation:
         model.set_min_objective(regret)
         model.set_bounds(builder.lower_bounds, builder.upper_bounds)
 
-        constraints = builder.constraints
-        for cs, set_constraint in [(constraints.m_equality.values(), model.add_equality_matrix_constraint),
-                                   (constraints.m_inequality.values(), model.add_inequality_matrix_constraint)]:
-            for c in cs:
-                set_constraint(c, builder.c_eps)
-
         return None, self._optimize(model,
                                     self.prob @ solutions if x0 is None else x0,
                                     initial_solution)
@@ -128,7 +121,8 @@ class OptimizationOperation:
                          dist_func: Union[Callable[[np.ndarray], np.ndarray], np.ufunc],
                          initial_solution: Optional[str] = None):
         """
-        Runs the second step (regret minimization) where the decision variable
+        Runs the second step (regret minimization) where the decision variable is the proportion used
+        from the first step optimization.
 
         Parameters
         ----------
@@ -145,12 +139,11 @@ class OptimizationOperation:
 
         initial_solution: str, optional
             The method to find the initial solution if the initial vector :code:`x0` is not specified. Set as
-            :code:`None` to disable. However, if disabled, the initial vector must be supplied. See notes on
-            Initial Solution for more information
+            :code:`None` to disable. However, if disabled, the initial vector must be supplied.
         """
         # weighted function values for each scenario
         builder = self.builder
-        f_values: np.ndarray = np.array([f(s) for f, s in zip(builder.obj_funcs, solutions)])
+        f_values = np.array([f(s) for f, s in zip(builder.obj_funcs, solutions)])
 
         def regret(p):
             cost = f_values - np.array([f(p @ solutions) for f in builder.obj_funcs])
@@ -159,8 +152,8 @@ class OptimizationOperation:
 
         model = BaseOptimizer(builder.num_scenarios)
         model.set_min_objective(regret)
-
         model.set_bounds(0, 1)
+        model.add_equality_constraint(lambda p: sum(p) - 1)
         proportions = self._optimize(model,
                                      self.prob if x0 is None else x0,
                                      initial_solution)

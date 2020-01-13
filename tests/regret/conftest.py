@@ -19,22 +19,22 @@ def get_adjustments(outlook: pd.DataFrame, scenario: str, horizon: int, field: s
     return [value_map[asset] for asset in _assets]
 
 
-@pytest.fixture("module")
+@pytest.fixture("package")
 def assets():
     return _assets
 
 
-@pytest.fixture("module")
+@pytest.fixture("package")
 def scenarios():
     return _scenarios
 
 
-@pytest.fixture("module")
+@pytest.fixture("package")
 def outlook():
     return pd.read_csv(os.path.join(os.path.dirname(__file__), "data/scenario.csv"))
 
 
-@pytest.fixture("module")
+@pytest.fixture("package")
 def main_cubes(outlook):
     return [
         OptData(load_monte_carlo()[..., :len(_assets)], 'quarterly')
@@ -43,7 +43,7 @@ def main_cubes(outlook):
     ]
 
 
-@pytest.fixture("module")
+@pytest.fixture("package")
 def cvar_cubes(outlook):
     return [
         OptData(load_monte_carlo()[..., :len(_assets)], 'quarterly')

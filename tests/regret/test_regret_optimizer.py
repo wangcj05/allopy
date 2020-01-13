@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from allopy import PortfolioRegretOptimizer, RegretOptimizer
+from allopy import PortfolioRegretOptimizer, RegretOptimizer, get_option
 from .data import Test1, Test2
 from .funcs import cvar_fun, obj_max_returns
 
@@ -44,7 +44,8 @@ def test_portfolio_regret_optimizer(config, assets, scenarios, main_cubes, cvar_
 def assert_scenario_solution_equal_or_better(obj_funcs, solutions, expected):
     results = []
     for f, w, t, in zip(obj_funcs, solutions, expected):
-        results.append(round(f(w) - f(t), 2) >= 0)
+        diff = (f(w) - f(t)) / get_option("F.SCALE")
+        results.append(round(diff, 4) >= 0)
 
     assert np.alltrue(results)
 
@@ -56,4 +57,5 @@ def assert_regret_is_lower(p0, p1, solutions, obj_funcs, prob):
         cost = np.asarray(cost ** 2)
         return 100 * sum(prob * cost)
 
-    assert regret(p0) < regret(p1)
+    diff = (regret(p0) - regret(p1)) / get_option("F.SCALE")
+    assert round(diff) <= 0
