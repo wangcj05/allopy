@@ -550,7 +550,6 @@ class OptData(np.ndarray):
 
     def __reduce__(self):
         """
-
         This function is used to formulate data that will be sent for pickling.
 
         The end result is the actual blob that will be pickled. Added the class properties explicitly as these are not
@@ -587,9 +586,9 @@ class OptData(np.ndarray):
             keyword arguments
         """
         meta = state[-1]
+        self.n_assets = meta['n_assets']
         self.cov_mat = meta['cov_mat']
         self.n_years = meta['n_years']
-        self.n_assets = meta['n_assets']
         self.time_unit = meta['time_unit']
         self._unrebalanced_returns_data = meta['_unrebalanced_returns_data']
 
