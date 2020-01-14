@@ -8,6 +8,7 @@ from nlopt import RoundoffLimited
 from allopy import OptData, get_option
 from allopy.penalty import NoPenalty, Penalty
 from allopy.types import OptArray
+from .summary import PortfolioSummary
 from ..algorithms import LD_SLSQP
 from ..base import BaseOptimizer
 
@@ -155,6 +156,9 @@ class AbstractPortfolioOptimizer(BaseOptimizer, ABC):
     def add_inequality_matrix_constraint(self, A, b, tol=None):
         s = get_option("C.SCALE")
         return super().add_inequality_matrix_constraint(A * s, b * s, tol)
+
+    def summary(self):
+        return PortfolioSummary(self._result)
 
 
 class AbstractObjectiveBuilder(ABC):
