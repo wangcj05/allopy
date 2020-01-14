@@ -8,8 +8,7 @@ from .abstract import Penalty
 
 class UncertaintyPenalty(Penalty):
     def __init__(self, uncertainty: Union[Iterable[Union[int, float]], np.ndarray],
-                 alpha: float = 0.95,
-                 method='direct'):
+                 alpha: float = 0.95, method='direct', dim: int = None):
         r"""
         The uncertainty penalty. It penalizes the objective function relative to the level of uncertainty for the
         given asset
@@ -45,9 +44,13 @@ class UncertaintyPenalty(Penalty):
             Method used to construct the lambda parameter. If "direct", the exact value specified by the `alpha`
             parameter is used. If "chi2", the value is determined using the inverse of the chi-square quantile
             function. In that instance, the `alpha` parameter will be the confidence level. See Notes.
+
+        dim: int
+            If provided, it will override the default dimension of the penalty which is determined by the
+            length of the uncertainty vector/matrix provided
         """
         self._uncertainty = self._derive_uncertainty(np.asarray(uncertainty))
-        self.dim = len(self._uncertainty)
+        self.dim = int(dim) if isinstance(dim, (int, float)) else len(self._uncertainty)
         self._method = method.lower()
         self._alpha = self._derive_lambda(alpha, self._method, self.dim)
 
@@ -70,8 +73,8 @@ class UncertaintyPenalty(Penalty):
         if method == "direct":
             return value
         else:
-            assert 0 < value <= 1, "lambda_ (alpha) parameter must be between 0 and 1 (inclusive) if using 'chi2'"
-            return 1 / chi2.ppf(value, dim - 1)
+            assert 0 <= value <= 1, "lambda_ (alpha) parameter must be between [0, 1] if using 'chi2'"
+            return chi2.ppf(value, dim - 1)
 
     @staticmethod
     def _derive_uncertainty(uncertainty: np.ndarray):
@@ -79,6 +82,8 @@ class UncertaintyPenalty(Penalty):
             uncertainty = np.diag(uncertainty)
 
         assert uncertainty.ndim == 2, "uncertainty input must be 1 or 2 dimensional"
+        assert all(i == len(uncertainty) for i in uncertainty.shape), "uncertainty input must be a square matrix"
+
         return uncertainty
 
     def __str__(self):
