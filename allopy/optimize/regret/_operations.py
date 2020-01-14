@@ -49,7 +49,7 @@ class OptimizationOperation:
             props, weights = self._optimize_actual(x0_prop, solutions, dist_func, initial_solution)
 
         self.solution = RegretOptimizerSolution(weights, solutions, props)
-        self.result = RegretResult(self.builder, weights, solutions, props, mb.c_eps)
+        self.result = RegretResult(self.builder, weights, solutions, props, dist_func, self.prob, mb.c_eps)
 
         return self
 
