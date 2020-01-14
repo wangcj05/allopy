@@ -59,7 +59,7 @@ class BaseOptimizer:
         self.set_maxeval(get_option('MAX.EVAL'))
 
         self._cmap = ConstraintMap()
-        self._result: Optional[Result] = None
+        self._result = Result()
         self._max_or_min = None
         self._verbose = kwargs.get('verbose', False)
 
@@ -157,7 +157,8 @@ class BaseOptimizer:
 
         sol = self._model.optimize(x0, *args)
         if sol is not None:
-            self._result = Result(self._cmap, sol, self._eps)
+            self._result.x = sol
+            self._result.set_constraints(self._cmap, self._eps)
             return self._result.x
         else:
             if self._verbose:
@@ -186,6 +187,7 @@ class BaseOptimizer:
         self._max_or_min = 'maximize'
         self._model.set_stopval(float('inf'))
         self._model.set_max_objective(self._set_gradient(fn), *args)
+        self._result.obj_func = fn
 
         return self
 
@@ -211,6 +213,7 @@ class BaseOptimizer:
         self._max_or_min = 'minimize'
         self._model.set_stopval(-float('inf'))
         self._model.set_min_objective(self._set_gradient(fn), *args)
+        self._result.obj_func = fn
 
         return self
 

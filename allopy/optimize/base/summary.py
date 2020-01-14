@@ -63,7 +63,7 @@ class Summary:
 """
 
         return f"""
-<h1>Portfolio Optimizer</h1>
+<h1>Base Optimizer</h1>
 <h3>Algorithm: {self.alg}</h3>
 <hr/>
 <table>
