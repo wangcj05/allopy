@@ -25,7 +25,7 @@ class ActivePortfolioRegretOptimizer(RegretOptimizer):
                  verbose=False,
                  max_attempts=5,
                  rebalance=True,
-                 sum_to_1=True,
+                 sum_to_1=False,
                  time_unit='quarterly'):
         r"""
         PortfolioRegretOptimizer houses several common pre-specified regret optimization routines. Regret optimization
