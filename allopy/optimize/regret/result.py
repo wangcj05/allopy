@@ -88,16 +88,18 @@ class RegretResult:
                     self.violations.append(f"{name}-{i}")
 
     def _check_matrix_constraints(self, constraints, eps):
-        for name, f in constraints.m_equality.items():
-            value = f(self.solution)
-            if abs(value) <= eps:
-                self.tight_constraint.append(name)
-            elif value > eps:
-                self.violations.append(name)
+        for name, fns in constraints.m_equality.items():
+            for f in fns:
+                value = f(self.solution)
+                if abs(value) <= eps:
+                    self.tight_constraint.append(name)
+                elif value > eps:
+                    self.violations.append(name)
 
-        for name, f in constraints.m_inequality.items():
-            if abs(f(self.solution)) > eps:
-                self.violations.append(name)
+        for name, fns in constraints.m_inequality.items():
+            for f in fns:
+                if abs(f(self.solution)) > eps:
+                    self.violations.append(name)
 
     def _derive_scenario_objective_values(self, mb: ModelBuilder):
         values = []

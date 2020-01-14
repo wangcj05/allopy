@@ -1,3 +1,4 @@
+from inspect import isfunction
 from typing import Callable, List, Optional, Union
 
 import numpy as np
@@ -10,6 +11,7 @@ from ._modelbuilder import ModelBuilder
 from ._operations import OptimizationOperation
 from .result import RegretOptimizerSolution, RegretResult
 from .summary import RegretSummary
+from .types import ConFunc, ObjFunc
 
 __all__ = ['RegretOptimizer']
 
@@ -228,7 +230,7 @@ class RegretOptimizer:
         assert isinstance(value, bool), "sum_to_1 must be a boolean value"
         self._mb.sum_to_1 = value
 
-    def set_max_objective(self, functions: List[Callable]):
+    def set_max_objective(self, functions: ObjFunc):
         """
         Sets the optimizer to maximize the objective function. If gradient of the objective function is not set and the
         algorithm used to optimize is gradient-based, the optimizer will attempt to insert a smart numerical gradient
@@ -239,16 +241,17 @@ class RegretOptimizer:
 
         Parameters
         ----------
-        functions: List of Callable
+        functions: Callable or List of Callable
             Objective function. The function signature should be such that the first argument takes in a weight
             vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
-            given, the user must put adjust the gradients inplace.
+            given, the user must put adjust the gradients inplace. If only a single function is given, the same
+            function will be used for all the scenarios
         """
         self._mb.max_or_min = 'maximize'
-        self._mb.obj_funcs = functions
+        self._set_obj_func(functions)
         return self
 
-    def set_min_objective(self, functions: List[Callable]):
+    def set_min_objective(self, functions: ObjFunc):
         """
         Sets the optimizer to minimize the objective function. If gradient of the objective function is not set and the
         algorithm used to optimize is gradient-based, the optimizer will attempt to insert a smart numerical gradient
@@ -259,16 +262,17 @@ class RegretOptimizer:
 
         Parameters
         ----------
-        functions: List of Callable
+        functions: Callable or List of Callable
             Objective function. The function signature should be such that the first argument takes in a weight
             vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
-            given, the user must put adjust the gradients inplace.
+            given, the user must put adjust the gradients inplace. If only a single function is given, the same
+            function will be used for all the scenarios
         """
         self._mb.max_or_min = 'minimize'
-        self._mb.obj_funcs = functions
+        self._set_obj_func(functions)
         return self
 
-    def add_inequality_constraint(self, functions: List[Callable]):
+    def add_inequality_constraint(self, functions: ConFunc):
         """
         Adds the equality constraint function in standard form, A <= b. If the gradient of the constraint function is
         not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
@@ -279,15 +283,16 @@ class RegretOptimizer:
 
         Parameters
         ----------
-        functions: List of Callable
+        functions: Callable or List of Callable
             Constraint functions. The function signature should be such that the first argument takes in a weight
             vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
-            given, the user must put adjust the gradients inplace.
+            given, the user must put adjust the gradients inplace. If only a single function is given, the same
+            function will be used for all the scenarios
         """
-        self._mb.add_inequality_constraints(functions)
+        self._mb.add_inequality_constraints(self._modify_constraints(functions))
         return self
 
-    def add_equality_constraint(self, functions: List[Callable]):
+    def add_equality_constraint(self, functions: ConFunc):
         """
         Adds the equality constraint function in standard form, A = b. If the gradient of the constraint function
         is not specified and the algorithm used is a gradient-based one, the optimizer will attempt to insert a smart
@@ -298,12 +303,13 @@ class RegretOptimizer:
 
         Parameters
         ----------
-        functions: List of Callable
+        functions: Callable or List of Callable
             Constraint function. The function signature should be such that the first argument takes in a weight
             vector and outputs a numeric (float). The second argument is optional and contains the gradient. If
-            given, the user must put adjust the gradients inplace.
+            given, the user must put adjust the gradients inplace. If only a single function is given, the same
+            function will be used for all the scenarios
         """
-        self._mb.add_equality_constraints(functions)
+        self._mb.add_equality_constraints(self._modify_constraints(functions))
         return self
 
     def add_inequality_matrix_constraint(self, A, b):
@@ -606,3 +612,25 @@ class RegretOptimizer:
     def verbose(self, verbose: bool):
         self._verbose = verbose
         assert isinstance(verbose, bool)
+
+    def _set_obj_func(self, functions: ObjFunc):
+        if hasattr(functions, "__iter__"):
+            self._mb.obj_funcs = list(functions)
+        else:
+            assert isfunction(functions), "objective function must be a function.. duh.."
+            self._mb.obj_funcs = [functions] * self._num_scenarios
+
+        assert len(self._mb.obj_funcs) == self._num_scenarios, \
+            "number of objective functions must be equal to number of scenarios"
+
+    def _modify_constraints(self, functions: ConFunc):
+        if hasattr(functions, "__iter__"):
+            functions = list(functions)
+        else:
+            assert isfunction(functions), "constraint function must be a function.. duh.."
+            functions = [functions] * self._num_scenarios
+
+        assert len(functions) == self._num_scenarios, \
+            "number of objective functions must be equal to number of scenarios"
+
+        return functions

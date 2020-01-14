@@ -1,17 +1,17 @@
-from typing import Callable, Dict, List, Sized
+from typing import Dict, List, Sized, Union
 
-import numpy as np
+from .types import Arg1Func, Arg2Func
 
-ConstraintFunc = Callable[[np.ndarray], float]
+ConstraintFunc = Union[List[Arg1Func], List[Arg2Func]]
 
 
 class ConstraintMap:
     def __init__(self, num_scenarios):
         self.n = num_scenarios
-        self._equality: Dict[str, List[ConstraintFunc]] = {}
-        self._inequality: Dict[str, List[ConstraintFunc]] = {}
-        self._m_equality: Dict[str, List[ConstraintFunc]] = {}
-        self._m_inequality: Dict[str, List[ConstraintFunc]] = {}
+        self._equality: Dict[str, ConstraintFunc] = {}
+        self._inequality: Dict[str, ConstraintFunc] = {}
+        self._m_equality: Dict[str, ConstraintFunc] = {}
+        self._m_inequality: Dict[str, ConstraintFunc] = {}
 
     @property
     def equality(self):
@@ -29,18 +29,18 @@ class ConstraintMap:
     def m_inequality(self):
         return self._m_inequality
 
-    def add_equality_constraints(self, fns: List[ConstraintFunc]):
+    def add_equality_constraints(self, fns: ConstraintFunc):
         self._equality[self._rename(fns[0], self._equality.keys())] = fns
 
-    def add_inequality_constraints(self, fns: List[ConstraintFunc]):
+    def add_inequality_constraints(self, fns: ConstraintFunc):
         self._inequality[self._rename(fns[0], self._inequality.keys())] = fns
 
-    def add_matrix_equality_constraints(self, fn: ConstraintFunc):
-        self._m_equality[self._rename(fn, self._m_equality.keys())] = fn
+    def add_matrix_equality_constraints(self, fns: ConstraintFunc):
+        self._m_equality[self._rename(fns[0], self._m_equality.keys())] = fns
 
-    def add_matrix_inequality_constraints(self, fn: ConstraintFunc):
-        self._m_inequality[self._rename(fn, self._m_inequality.keys())] = fn
+    def add_matrix_inequality_constraints(self, fns: ConstraintFunc):
+        self._m_inequality[self._rename(fns[0], self._m_inequality.keys())] = fns
 
     @staticmethod
-    def _rename(fn: ConstraintFunc, names: Sized):
+    def _rename(fn: Union[Arg1Func, Arg2Func], names: Sized):
         return f"{fn.__name__}_{len(names) + 1}"

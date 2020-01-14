@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional
+from typing import List, Union
 
 import nlopt as nl
 import numpy as np
@@ -7,10 +7,12 @@ from allopy.optimize import BaseOptimizer
 from allopy.optimize.algorithms import has_gradient, map_algorithm
 from allopy.optimize.utils import create_matrix_constraint, validate_matrix_constraints
 from .constraint import ConstraintMap
+from .types import Arg1Func, Arg2Func
 
 __all__ = ["ModelBuilder"]
 
-ObjectiveFunc = Callable[[np.ndarray, Optional[np.ndarray]], float]
+ObjectiveFunc = Union[List[Arg1Func], List[Arg2Func]]
+ConstraintFunc = Union[List[Arg1Func], List[Arg2Func]]
 
 
 class ModelBuilder:
@@ -35,7 +37,7 @@ class ModelBuilder:
         self.num_assets = num_assets
         self.algorithm = algorithm
         self.max_or_min = None
-        self._obj_funcs: List[ObjectiveFunc] = []
+        self._obj_funcs: ObjectiveFunc = []
         self.lower_bounds = np.repeat(0, num_assets)
         self.upper_bounds = np.repeat(1, num_assets)
         self.constraints = ConstraintMap(num_scenarios)
@@ -69,8 +71,10 @@ class ModelBuilder:
         for constraints, set_constraint in [
             (self.constraints.equality, model.add_equality_constraint),
             (self.constraints.inequality, model.add_inequality_constraint),
-            (self.constraints.m_equality, model.add_equality_matrix_constraint),
-            (self.constraints.m_inequality, model.add_inequality_matrix_constraint)
+            # matrix constraints have been transformed to functions in RegretOptimizer, thus we
+            # use add_(in)equality_constraint constraint directly
+            (self.constraints.m_equality, model.add_equality_constraint),
+            (self.constraints.m_inequality, model.add_inequality_constraint)
         ]:
             for fn_list in constraints.values():
                 for f in fn_list:
@@ -95,15 +99,15 @@ class ModelBuilder:
         return self._obj_funcs
 
     @obj_funcs.setter
-    def obj_funcs(self, functions: List[ObjectiveFunc]):
+    def obj_funcs(self, functions: ObjectiveFunc):
         self._validate_num_functions(functions)
         self._obj_funcs = functions
 
-    def add_inequality_constraints(self, functions: list):
+    def add_inequality_constraints(self, functions: ConstraintFunc):
         self._validate_num_functions(functions)
         self.constraints.add_inequality_constraints(functions)
 
-    def add_equality_constraints(self, functions: list):
+    def add_equality_constraints(self, functions: ConstraintFunc):
         self._validate_num_functions(functions)
         self.constraints.add_equality_constraints(functions)
 
@@ -112,14 +116,14 @@ class ModelBuilder:
 
         for i, row, limit in zip(range(len(b)), A, b):
             fn = create_matrix_constraint(row, limit, f"A_{i}")
-            self.constraints.add_matrix_inequality_constraints(fn)
+            self.constraints.add_matrix_inequality_constraints([fn] * self.num_scenarios)
 
     def add_equality_matrix_constraints(self, Aeq, beq):
         Aeq, beq = validate_matrix_constraints(Aeq, beq)
 
         for i, row, limit in zip(range(len(beq)), Aeq, beq):
             fn = create_matrix_constraint(row, limit, f"A_{i}")
-            self.constraints.add_matrix_inequality_constraints(fn)
+            self.constraints.add_matrix_equality_constraints([fn] * self.num_scenarios)
 
     def _validate_num_functions(self, funcs: List):
         error_msg = f"Number of functions do not match. Functions given: {len(funcs)}. " \
