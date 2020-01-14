@@ -1,0 +1,31 @@
+Strategy      ,lb,ub
+PP            ,1 ,1
+FI Active     ,0 ,0.1622
+HY Credit     ,0 ,0.0243
+EILB Active   ,0 ,0.05
+EQTR          ,0 ,0.0665
+EQRR          ,0 ,0.1138
+EQ Quant      ,0 ,0.0138
+SIGMA         ,0 ,0.0041
+MAP           ,0 ,0.0162
+MA            ,0 ,0.0234
+ULTRA         ,0 ,0.0098
+GMA           ,0 ,0.0042
+RE B&M        ,0 ,0.11
+RE Listed     ,0 ,0.0055
+RE Unlisted   ,0 ,0.0028
+PE Active     ,0 ,0.1163
+PE Secondaries,0 ,0.0097
+PAR           ,0 ,0.0125
+ISG           ,0 ,0.0236
+Infra         ,0 ,0.0484
+Infra Debt    ,0 ,0.0062
+RE Snr        ,0 ,0.0076
+RE Jnr        ,0 ,0.0101
+PE Mezz       ,0 ,0.0133
+PSL           ,0 ,0.0135
+SOG           ,0 ,0.0156
+Antares       ,0 ,0.0032
+AIM           ,0 ,0.0243
+MA2           ,0 ,0.0234
+ULTRA2        ,0 ,0.0098
