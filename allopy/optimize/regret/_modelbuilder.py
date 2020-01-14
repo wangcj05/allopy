@@ -71,9 +71,9 @@ class ModelBuilder:
             (self.constraints.inequality, model.add_inequality_constraint),
             (self.constraints.m_equality, model.add_equality_matrix_constraint),
             (self.constraints.m_inequality, model.add_inequality_matrix_constraint)
-        ]:  # type: dict, callable
+        ]:
             for c in constraints.values():
-                set_constraint(c[index], self.c_eps)
+                set_constraint(c, self.c_eps)
 
         if self.sum_to_1:
             model.add_equality_constraint(lambda x: sum(x) - 1)

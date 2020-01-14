@@ -1,5 +1,6 @@
+import inspect
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import numpy as np
 
@@ -16,36 +17,33 @@ class RegretOptimizerSolution:
 
 @dataclass
 class RegretResult:
-    num_assets: int
-    num_scenarios: int
-    tight_constraint: List[str]
-    violations: List[str]
-    solution: Optional[np.ndarray]
-    _assets: List[str]
-    _scenarios: List[str]
-    proportions: Optional[np.ndarray]
-    scenario_solutions: Optional[np.ndarray]
-
     def __init__(self,
                  mb: ModelBuilder,
                  solution: np.ndarray,
                  scenario_solutions: np.ndarray,
                  proportions: Optional[np.ndarray],
+                 dist_func: Callable[[np.ndarray], np.ndarray],
+                 probability: np.ndarray,
                  eps: float = get_option("EPS.CONSTRAINT")):
         self.num_assets = mb.num_assets
         self.num_scenarios = mb.num_scenarios
         self.solution = np.asarray(solution)
-        self.proportions = np.asarray(proportions)
+        self.proportions = np.asarray(proportions) if proportions is not None else None
         self.scenario_solutions = np.asarray(scenario_solutions)
+        self.probability = probability
 
         self._assets = [f"Asset_{i + 1}" for i in range(mb.num_assets)]
-        self._scenarios: List[str] = [f"Scenario_{i + 1}" for i in range(mb.num_scenarios)]
+        self._scenarios = [f"Scenario_{i + 1}" for i in range(mb.num_scenarios)]
 
         self.tight_constraint: List[str] = []
         self.violations: List[str] = []
 
-        self._check_matrix_constraints(mb.constraints, self.solution, eps)
-        self._check_functional_constraints(mb.constraints, self.solution, eps)
+        self._check_matrix_constraints(mb.constraints, eps)
+        self._check_functional_constraints(mb.constraints, eps)
+
+        self.scenario_objective_values = self._derive_scenario_objective_values(mb)
+        self.regret_value = self._derive_regret_value(mb, dist_func)
+        self.constraint_values = self._derive_constraint_values(mb)
 
     @property
     def assets(self):
@@ -75,10 +73,10 @@ class RegretResult:
 
         self._scenarios = value
 
-    def _check_functional_constraints(self, constraints, solution, eps):
+    def _check_functional_constraints(self, constraints, eps):
         for name, cstr in constraints.inequality.items():
             for i, f in enumerate(cstr):
-                value = f(solution)
+                value = f(self.solution)
                 if np.isclose(value, 0, atol=eps):
                     self.tight_constraint.append(f"{name}-{i}")
                 elif value > eps:
@@ -86,17 +84,59 @@ class RegretResult:
 
         for name, cstr in constraints.equality.items():
             for i, f in enumerate(cstr):
-                if abs(f(solution)) > eps:
+                if abs(f(self.solution)) > eps:
                     self.violations.append(f"{name}-{i}")
 
-    def _check_matrix_constraints(self, constraints, solution, eps):
+    def _check_matrix_constraints(self, constraints, eps):
         for name, f in constraints.m_equality.items():
-            value = f(solution)
+            value = f(self.solution)
             if abs(value) <= eps:
                 self.tight_constraint.append(name)
             elif value > eps:
                 self.violations.append(name)
 
         for name, f in constraints.m_inequality.items():
-            if abs(f(solution)) > eps:
+            if abs(f(self.solution)) > eps:
                 self.violations.append(name)
+
+    def _derive_scenario_objective_values(self, mb: ModelBuilder):
+        values = []
+        for f, s in zip(mb.obj_funcs, self.scenario_solutions):
+            if len(inspect.signature(f).parameters) == 1:
+                v = f(s)
+            else:  # number of parameters can only be 2 in this case
+                grad = np.ones((self.num_assets, self.num_assets))  # filler gradient, not necessary
+                v = f(s, grad)
+            values.append(v / get_option("F.SCALE"))
+
+        return np.array(values)
+
+    def _derive_regret_value(self, mb: ModelBuilder, dist_func: Callable[[np.ndarray], np.ndarray]) -> float:
+        f_values = np.array([f(s) for f, s in zip(mb.obj_funcs, self.scenario_solutions)])
+        curr_f_values = np.array([f(self.solution) for f in mb.obj_funcs])
+
+        cost = dist_func(f_values - curr_f_values) / get_option("F.SCALE")
+        return sum(self.probability * cost)
+
+    def _derive_constraint_values(self, mb: ModelBuilder):
+        constraints = []
+        for eq, constraint_map in [("<=", mb.constraints.m_inequality),
+                                   ("<=", mb.constraints.inequality),
+                                   ("=", mb.constraints.m_equality),
+                                   ("=", mb.constraints.equality)]:
+            for name, fns in constraint_map.items():
+                for f, s in zip(fns, self.scenarios):
+                    if len(inspect.signature(f).parameters) == 1:
+                        v = f(self.solution)
+                    else:  # number of parameters can only be 2 in this case
+                        grad = np.ones((self.num_assets, self.num_assets))  # filler gradient, not necessary
+                        v = f(self.solution, grad)
+
+                    constraints.append({
+                        "Name": name,
+                        "Scenario": s,
+                        "Equality": eq,
+                        "Value": v / get_option("C.SCALE")
+                    })
+
+        return constraints

@@ -20,8 +20,12 @@ def test_regret_optimizer(config, assets, scenarios, main_cubes, cvar_cubes):
     opt.add_inequality_constraint(constraint_funcs)
     opt.optimize()
 
-    assert_scenario_solution_equal_or_better(obj_funcs, opt.result.scenario_solutions, config.solutions)
-    # assert_almost_equal(opt.result.proportions, config.proportions, 3)
+    assert scenario_solution_equal_or_better(obj_funcs, opt.solution.scenario_optimal, config.solutions) or \
+           regret_is_lower(opt.solution.proportions,
+                           config.proportions,
+                           opt.solution.scenario_optimal,
+                           obj_funcs,
+                           config.prob.as_array())
 
 
 @pytest.mark.parametrize("config", [Test1])
@@ -33,29 +37,28 @@ def test_portfolio_regret_optimizer(config, assets, scenarios, main_cubes, cvar_
     opt.maximize_returns(max_cvar=config.cvar.as_array())
 
     obj_funcs = opt._objectives.max_returns
-    assert_scenario_solution_equal_or_better(obj_funcs, opt.solution.scenario_optimal, config.solutions)
-    assert_regret_is_lower(opt.solution.proportions,
+    assert scenario_solution_equal_or_better(obj_funcs, opt.solution.scenario_optimal, config.solutions) or \
+           regret_is_lower(opt.solution.proportions,
                            config.proportions,
                            opt.solution.scenario_optimal,
                            obj_funcs,
                            config.prob.as_array())
 
 
-def assert_scenario_solution_equal_or_better(obj_funcs, solutions, expected):
+def scenario_solution_equal_or_better(obj_funcs, solutions, expected):
     results = []
     for f, w, t, in zip(obj_funcs, solutions, expected):
         diff = (f(w) - f(t)) / get_option("F.SCALE")
-        results.append(round(diff, 4) >= 0)
+        results.append(round(diff, 3) >= 0)
 
-    assert np.alltrue(results)
+    return np.alltrue(results)
 
 
-def assert_regret_is_lower(p0, p1, solutions, obj_funcs, prob):
+def regret_is_lower(p0, p1, solutions, obj_funcs, prob):
     def regret(p):
         f_values = np.array([obj_funcs[i](s) for i, s in enumerate(solutions)])
         cost = f_values - np.array([f(p @ solutions) for f in obj_funcs])
         cost = np.asarray(cost ** 2)
         return 100 * sum(prob * cost)
 
-    diff = (regret(p0) - regret(p1)) / get_option("F.SCALE")
-    assert round(diff) <= 0
+    return regret(p0) <= regret(p1)

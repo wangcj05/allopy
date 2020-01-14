@@ -1,4 +1,4 @@
-from typing import Callable, List, Sized
+from typing import Callable, Dict, List, Sized
 
 import numpy as np
 
@@ -8,10 +8,10 @@ ConstraintFunc = Callable[[np.ndarray], float]
 class ConstraintMap:
     def __init__(self, num_scenarios):
         self.n = num_scenarios
-        self._equality = {}
-        self._inequality = {}
-        self._m_equality = {}
-        self._m_inequality = {}
+        self._equality: Dict[str, List[ConstraintFunc]] = {}
+        self._inequality: Dict[str, List[ConstraintFunc]] = {}
+        self._m_equality: Dict[str, List[ConstraintFunc]] = {}
+        self._m_inequality: Dict[str, List[ConstraintFunc]] = {}
 
     @property
     def equality(self):
