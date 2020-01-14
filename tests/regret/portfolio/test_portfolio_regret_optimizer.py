@@ -2,12 +2,12 @@ import numpy as np
 import pytest
 
 from allopy import PortfolioRegretOptimizer, RegretOptimizer, get_option
-from .data import Test1, Test2
+from .data import Test1, Test2, assets, scenarios
 from .funcs import cvar_fun, obj_max_returns
 
 
 @pytest.mark.parametrize("config", [Test1, Test2])
-def test_regret_optimizer(config, assets, scenarios, main_cubes, cvar_cubes):
+def test_regret_optimizer(config, main_cubes, cvar_cubes):
     opt = RegretOptimizer(len(assets), len(scenarios), config.prob.as_array(), sum_to_1=True)
     opt.set_bounds(config.lb.as_array(), config.ub.as_array())
 
@@ -29,7 +29,7 @@ def test_regret_optimizer(config, assets, scenarios, main_cubes, cvar_cubes):
 
 
 @pytest.mark.parametrize("config", [Test1])
-def test_portfolio_regret_optimizer(config, assets, scenarios, main_cubes, cvar_cubes):
+def test_portfolio_regret_optimizer(config, main_cubes, cvar_cubes):
     opt = PortfolioRegretOptimizer(main_cubes, cvar_cubes, config.prob.as_array(),
                                    rebalance=True, sum_to_1=True, time_unit='quarterly')
 

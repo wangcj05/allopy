@@ -1,8 +1,14 @@
+import os
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 
-__all__ = ["Test1", "Test2"]
+__all__ = ["Test1", "Test2", "assets", "scenarios", "outlook"]
+
+assets = 'DMEQ', 'EMEQ', 'PE', 'RE', 'NB', 'EILB', 'CASH'
+scenarios = 'Baseline', 'Goldilocks', 'Stagflation', 'HHT'
+outlook = pd.read_csv(os.path.join(os.path.dirname(__file__), "scenario.csv"))
 
 
 @dataclass

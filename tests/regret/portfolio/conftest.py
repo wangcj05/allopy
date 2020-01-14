@@ -1,53 +1,46 @@
 import os
+from concurrent.futures import ProcessPoolExecutor
 
-import pandas as pd
 import pytest
 
 from allopy import OptData
 from allopy.datasets import load_monte_carlo
-
-_assets = 'DMEQ', 'EMEQ', 'PE', 'RE', 'NB', 'EILB', 'CASH'
-_scenarios = 'Baseline', 'Goldilocks', 'Stagflation', 'HHT'
+from .data import assets, outlook, scenarios
 
 
-def get_adjustments(outlook: pd.DataFrame, scenario: str, horizon: int, field: str):
-    value_map = outlook.query(f"SCENARIO == '{scenario}' & HORIZON == {horizon}") \
-        .groupby('ASSET') \
-        .apply(lambda x: x[field]) \
-        .droplevel(1)
+def get_adjustments(scenario: str, horizon: int):
+    returns_map = {r.ASSET: r.RETURN for _, r in
+                   outlook.query(f"SCENARIO == '{scenario}' & HORIZON == {horizon}").iterrows()}
 
-    return [value_map[asset] for asset in _assets]
+    return [returns_map[asset] for asset in assets]
 
 
 @pytest.fixture("package")
-def assets():
-    return _assets
+def main_cubes():
+    with ProcessPoolExecutor(os.cpu_count() - 1) as P:
+        res = P.map(_derive_main_cube, scenarios)
+
+    return list(res)
 
 
 @pytest.fixture("package")
-def scenarios():
-    return _scenarios
+def cvar_cubes():
+    with ProcessPoolExecutor(os.cpu_count() - 1) as P:
+        res = P.map(_derive_cvar_cube, scenarios)
+
+    return list(res)
 
 
-@pytest.fixture("package")
-def outlook():
-    return pd.read_csv(os.path.join(os.path.dirname(__file__), "data/scenario.csv"))
+def _derive_main_cube(scenario: str):
+    mean = get_adjustments(scenario, 20)
+    return OptData(load_monte_carlo(), 'quarterly') \
+        .take_assets(len(assets)) \
+        .calibrate_data(mean)
 
 
-@pytest.fixture("package")
-def main_cubes(outlook):
-    return [
-        OptData(load_monte_carlo()[..., :len(_assets)], 'quarterly')
-            .calibrate_data(get_adjustments(outlook, scenario, 20, "RETURN"))
-        for scenario in _scenarios
-    ]
-
-
-@pytest.fixture("package")
-def cvar_cubes(outlook):
-    return [
-        OptData(load_monte_carlo()[..., :len(_assets)], 'quarterly')
-            .cut_by_horizon(3)
-            .calibrate_data(get_adjustments(outlook, scenario, 3, "RETURN"))
-        for scenario in _scenarios
-    ]
+def _derive_cvar_cube(scenario: str):
+    mean = get_adjustments(scenario, 3)
+    return OptData(load_monte_carlo(), 'quarterly') \
+        .take_assets(len(assets)) \
+        .cut_by_horizon(3) \
+        .calibrate_data(mean)
