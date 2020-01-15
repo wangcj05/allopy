@@ -6,20 +6,20 @@ from .data import lb, linear_constraints, ub
 probability = [0.5, 0.25, 0.25]
 
 
-def test_active_regret_optimizer(main_cubes, cvar_cubes):
-    opt = ActivePortfolioRegretOptimizer(main_cubes, cvar_cubes, probability)
+def test_active_regret_optimizer_interface(main_cubes, cvar_cubes):
+    opt = ActivePortfolioRegretOptimizer(main_cubes, cvar_cubes, probability, time_unit='quarter')
     opt.set_bounds(lb, ub)
     opt = set_linear_constraints(opt)
-    opt.maximize_info_ratio()
+    results = opt.maximize_info_ratio()
 
-    results = opt.optimize()
     assert all(~np.isnan(results)), "should have non-nan results"
 
 
 def set_linear_constraints(opt: ActivePortfolioRegretOptimizer):
-    matrix = linear_constraints.iloc[:, :-2].to_numpy()
-    B = linear_constraints.B.to_numpy()
-    equalities = linear_constraints.EQUALITY.to_numpy()
+    lc = linear_constraints.copy(True)
+    matrix = lc.iloc[:, :-2].to_numpy()
+    B = lc.B.to_numpy()
+    equalities = lc.EQUALITY.to_numpy()
 
     # swap greater than or equal to equalities
     matrix[equalities == ">="] *= -1
