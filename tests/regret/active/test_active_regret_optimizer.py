@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from allopy import ActivePortfolioRegretOptimizer
 from .data import lb, linear_constraints, ub
@@ -13,6 +14,15 @@ def test_active_regret_optimizer_interface(main_cubes, cvar_cubes):
     results = opt.maximize_info_ratio()
 
     assert all(~np.isnan(results)), "should have non-nan results"
+
+
+@pytest.mark.parametrize("dist_func", [np.abs, np.square])
+def test_active_regret_optimizer_max_eva(main_cubes, cvar_cubes, dist_func):
+    opt = ActivePortfolioRegretOptimizer(main_cubes, cvar_cubes, probability)
+    opt.set_bounds(lb, ub)
+    opt = set_linear_constraints(opt)
+    sol = opt.maximize_eva(0.03, -0.4, dist_func=dist_func)
+    assert all(~np.isnan(sol)), "should have non-nan results"
 
 
 def set_linear_constraints(opt: ActivePortfolioRegretOptimizer):
