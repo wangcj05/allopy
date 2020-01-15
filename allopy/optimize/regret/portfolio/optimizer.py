@@ -3,7 +3,6 @@ from typing import Callable, Iterable, List, Optional, Union
 import numpy as np
 
 from allopy import OptData, translate_frequency
-from allopy.optimize.algorithms import LD_SLSQP
 from allopy.types import OptArray, OptReal
 from .constraints import ConstraintBuilder
 from .objectives import ObjectiveBuilder
@@ -15,18 +14,10 @@ class PortfolioRegretOptimizer(RegretOptimizer):
                  data: List[Union[np.ndarray, OptData]],
                  cvar_data: Optional[List[Union[np.ndarray, OptData]]] = None,
                  prob: OptArray = None,
-                 algorithm=LD_SLSQP,
-                 c_eps: Optional[float] = None,
-                 xtol_abs: Union[float, np.ndarray, None] = None,
-                 xtol_rel: Union[float, np.ndarray, None] = None,
-                 ftol_abs: Optional[float] = None,
-                 ftol_rel: Optional[float] = None,
-                 max_eval: Optional[int] = None,
-                 verbose=False,
-                 max_attempts=5,
                  rebalance=True,
                  sum_to_1=True,
-                 time_unit='quarterly'):
+                 time_unit='quarterly',
+                 **kwargs):
         r"""
         PortfolioRegretOptimizer houses several common pre-specified regret optimization routines. Regret optimization
         is a scenario based optimization.
@@ -76,62 +67,19 @@ class PortfolioRegretOptimizer(RegretOptimizer):
         prob
             Vector containing probability of each scenario occurring
 
-        algorithm
-            The optimization algorithm. Default algorithm is Sequential Least Squares Quadratic Programming.
-
-        c_eps: float, optional
-            Constraint epsilon is the tolerance for the inequality and equality constraints functions. Any
-            value that is less than the constraint epsilon is considered to be within the boundary.
-
-        xtol_abs: float or np.ndarray, optional
-            Set absolute tolerances on optimization parameters. :code:`tol` is an array giving the
-            tolerances: stop when an optimization step (or an estimate of the optimum) changes every
-            parameter :code:`x[i]` by less than :code:`tol[i]`. For convenience, if a scalar :code:`tol`
-            is given, it will be used to set the absolute tolerances in all n optimization parameters to
-            the same value. Criterion is disabled if tol is non-positive.
-
-        xtol_rel: float or np.ndarray, optional
-            Set relative tolerance on optimization parameters: stop when an optimization step (or an estimate
-            of the optimum) causes a relative change the parameters :code:`x` by less than :code:`tol`,
-            i.e. :math:`\|\Delta x\|_w < tol \cdot \|x\|_w` measured by a weighted :math:`L_1` norm
-            :math:`\|x\|_w = \sum_i w_i |x_i|`, where the weights :math:`w_i` default to 1. (If there is
-            any chance that the optimal :math:`\|x\|` is close to zero, you might want to set an absolute
-            tolerance with `code:`xtol_abs` as well.) Criterion is disabled if tol is non-positive.
-
-        ftol_abs: float, optional
-            Set absolute tolerance on function value: stop when an optimization step (or an estimate of
-            the optimum) changes the function value by less than :code:`tol`. Criterion is disabled if
-            tol is non-positive.
-
-        ftol_rel: float, optional
-            Set relative tolerance on function value: stop when an optimization step (or an estimate of
-            the optimum) changes the objective function value by less than :code:`tol` multiplied by the
-            absolute value of the function value. (If there is any chance that your optimum function value
-            is close to zero, you might want to set an absolute tolerance with :code:`ftol_abs` as well.)
-            Criterion is disabled if tol is non-positive.
-
-        max_eval: int, optional
-            Stop when the number of function evaluations exceeds :code:`maxeval`. (This is not a strict
-            maximum: the number of function evaluations may exceed :code:`maxeval` slightly, depending
-            upon the algorithm.) Criterion is disabled if maxeval is non-positive.
-
-        verbose: bool
-            If True, the optimizer will report its operations
-
-        max_attempts: int
-            Number of times to retry optimization. This is useful when optimization is in a highly unstable
-            or non-convex space.
-
         rebalance: bool, optional
-            Whether the weights are rebalanced in every time instance. Defaults to False
+            Whether the weights are rebalanced in every time instance. Defaults to True
 
         sum_to_1:
-            If True, portfolio weights must sum to 1.
+            If True, portfolio weights must sum to 1. Defaults to True
 
         time_unit: {int, 'monthly', 'quarterly', 'semi-annually', 'yearly'}, optional
             Specifies how many units (first axis) is required to represent a year. For example, if each time period
             represents a month, set this to 12. If quarterly, set to 4. Defaults to 12 which means 1 period represents
             a month. Alternatively, specify one of 'monthly', 'quarterly', 'semi-annually' or 'yearly'
+
+        kwargs:
+            Other keyword arguments to pass to the :class:`RegretOptimizer` base class
 
         See Also
         --------
@@ -141,8 +89,8 @@ class PortfolioRegretOptimizer(RegretOptimizer):
         self._objectives = ObjectiveBuilder(data, cvar_data, rebalance, time_unit)
         self._constraints = ConstraintBuilder(data, cvar_data, rebalance, time_unit)
 
-        super().__init__(self._objectives.num_assets, self._objectives.num_scenarios, prob, algorithm, c_eps, xtol_abs,
-                         xtol_rel, ftol_abs, ftol_rel, max_eval, verbose, sum_to_1, max_attempts)
+        na, ns = self._objectives.num_assets, self._objectives.num_scenarios
+        super().__init__(na, ns, prob, sum_to_1=sum_to_1, **kwargs)
 
     @property
     def rebalance(self):

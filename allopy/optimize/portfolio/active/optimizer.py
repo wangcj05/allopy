@@ -150,7 +150,6 @@ class ActivePortfolioOptimizer(AbstractPortfolioOptimizer):
         x0: ndarray
             Initial vector. Starting position for free variables
 
-
         as_active_return: boolean, optional
             If True, the returns constraint is calculated using the active portion of the weights. That is, the
             first value is forced to 0. If False, the returns constraint is calculated using the entire weight
