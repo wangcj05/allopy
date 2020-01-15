@@ -122,7 +122,7 @@ class ModelBuilder:
         Aeq, beq = validate_matrix_constraints(Aeq, beq)
 
         for i, row, limit in zip(range(len(beq)), Aeq, beq):
-            fn = create_matrix_constraint(row, limit, f"A_{i}")
+            fn = create_matrix_constraint(row, limit, f"AEQ_{i}")
             self.constraints.add_matrix_equality_constraints([fn] * self.num_scenarios)
 
     def _validate_num_functions(self, funcs: List):

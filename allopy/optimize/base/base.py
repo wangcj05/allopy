@@ -329,7 +329,7 @@ class BaseOptimizer:
         Aeq, beq = validate_matrix_constraints(Aeq, beq)
 
         for i, row, _beq in zip(range(len(beq)), Aeq, beq):
-            fn = create_matrix_constraint(row, _beq, f"A_{i}")
+            fn = create_matrix_constraint(row, _beq, f"AEQ_{i}")
             self._cmap.add_equality_constraint(fn)
 
             f = create_gradient_func(fn, self._eps)
