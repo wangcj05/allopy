@@ -26,7 +26,7 @@ class PortfolioSummary(Summary):
         self.add_df(pd.DataFrame({"Weight": self.result.x, "Assets": assets}))
 
     def _add_objective_value(self):
-        self.add_text(f"Objective Value: {self.result.x:.4}")
+        self.add_text(f"Objective Value: {self.result.obj_value:.4}")
 
     def _add_constraint_values(self):
         self.add_df(pd.DataFrame(self.result.constraint_values))
