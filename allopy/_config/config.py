@@ -1,9 +1,9 @@
 _global_config = {
     'C.SCALE': 1e3,  # constraint function multiplier
     'EPS.CONSTRAINT': 1e-7,
-    'EPS.F_ABS': 1e-6,
-    'EPS.F_REL': 1e-6,
-    'EPS.X_ABS': 1e-6,
+    'EPS.F_ABS': 1e-5,
+    'EPS.F_REL': 1e-4,
+    'EPS.X_ABS': 1e-5,
     'EPS.X_REL': 0,
     'EPS.STEP': 5e-7,
     'F.SCALE': 1e3,  # objective function multiplier
