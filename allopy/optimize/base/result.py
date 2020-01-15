@@ -19,6 +19,9 @@ class Result:
     @property
     def obj_value(self):
         assert self.obj_func is not None
+        if len(inspect.signature(self.obj_func).parameters) == 1:
+            return self.obj_func(self.x)
+
         return self.obj_func(self.x, np.ones((len(self.x), len(self.x))))
 
     @property
