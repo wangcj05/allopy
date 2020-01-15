@@ -1,10 +1,8 @@
-import os
-from concurrent.futures import ProcessPoolExecutor
-
 import pytest
 
 from allopy import OptData
 from allopy.datasets import load_monte_carlo
+from tests.utils import fetch_opt_data_test_file
 from .data import assets, outlook, scenarios
 
 
@@ -17,18 +15,25 @@ def get_adjustments(scenario: str, horizon: int):
 
 @pytest.fixture("package")
 def main_cubes():
-    with ProcessPoolExecutor(os.cpu_count() - 1) as P:
-        res = P.map(_derive_main_cube, scenarios)
+    res = []
+    for s in scenarios:
+        data = fetch_opt_data_test_file(f"portfolio-regret-{s}")
+        if data is None:
+            data = _derive_main_cube(s)
+        res.append(data)
 
-    return list(res)
+    return res
 
 
 @pytest.fixture("package")
 def cvar_cubes():
-    with ProcessPoolExecutor(os.cpu_count() - 1) as P:
-        res = P.map(_derive_cvar_cube, scenarios)
-
-    return list(res)
+    res = []
+    for s in scenarios:
+        data = fetch_opt_data_test_file(f"portfolio-regret-{s}-cvar")
+        if data is None:
+            data = _derive_main_cube(s)
+        res.append(data)
+    return res
 
 
 def _derive_main_cube(scenario: str):
