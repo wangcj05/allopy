@@ -2,7 +2,7 @@ from typing import Callable, List, Union
 
 import numpy as np
 
-__all__ = ["Arg1Func", "Arg2Func", "ObjFunc"]
+__all__ = ["Arg1Func", "Arg2Func", "ConFunc", "ObjFunc"]
 
 Arg1Func = Callable[[np.ndarray], float]
 Arg2Func = Callable[[np.ndarray, np.ndarray], float]

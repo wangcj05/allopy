@@ -67,18 +67,17 @@ class ModelBuilder:
             if item is not None:
                 set_option(item)
 
-        # sets constraints
+        # constraint functions are applied to each model (based on index)
+        # matrix constraints have been transformed to functions in RegretOptimizer,
+        # thus we use add_(in)equality_constraint constraint directly
         for constraints, set_constraint in [
             (self.constraints.equality, model.add_equality_constraint),
             (self.constraints.inequality, model.add_inequality_constraint),
-            # matrix constraints have been transformed to functions in RegretOptimizer, thus we
-            # use add_(in)equality_constraint constraint directly
             (self.constraints.m_equality, model.add_equality_constraint),
             (self.constraints.m_inequality, model.add_inequality_constraint)
         ]:
             for fn_list in constraints.values():
-                for f in fn_list:
-                    set_constraint(f, self.c_eps)
+                set_constraint(fn_list[index], self.c_eps)
 
         if self.sum_to_1:
             model.add_equality_constraint(lambda x: sum(x) - 1)

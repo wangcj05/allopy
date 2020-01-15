@@ -150,8 +150,8 @@ class RegretOptimizer:
             c_eps or get_option('EPS.CONSTRAINT'),
             verbose
         )
-        self._prob = None
-        self.prob = prob
+
+        self._prob = np.ones(num_scenarios) / num_scenarios if prob is None else np.asarray(prob)
 
         # result formatting options
         self._result = None
