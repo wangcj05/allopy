@@ -1,11 +1,14 @@
+import pickle
 import warnings
 from copy import deepcopy
 from typing import Iterable, Optional, Union
 
 import numpy as np
+import pandas as pd
 from copulae.core import is_psd, near_psd
 from copulae.types import Array
 from muarch.calibrate import calibrate_data
+from muarch.funcs import get_annualized_kurtosis, get_annualized_mean, get_annualized_sd, get_annualized_skew
 
 __all__ = ['OptData', 'alter_frequency', 'calibrate_data', 'coalesce_covariance_matrix', 'translate_frequency']
 
@@ -434,6 +437,23 @@ class OptData(np.ndarray):
         self._cov_mat = cov_mat
         return self
 
+    @property
+    def statistics(self):
+        """
+        Returns the statistics (4 moments) of the cube
+
+        Returns
+        -------
+        DataFrame
+            The first 4 moments of the cube for each asset (last axis)
+        """
+        return pd.DataFrame({
+            "Mean": get_annualized_mean(self, self.time_unit),
+            "SD": get_annualized_sd(self, self.time_unit),
+            "Skew": get_annualized_skew(self, self.time_unit),
+            "Kurt": get_annualized_kurtosis(self, self.time_unit),
+        })
+
     def take_assets(self, start: int, stop: Optional[int] = None):
         """
         Returns a new :code:`OptData` instance from the specified start and stop index
@@ -468,6 +488,18 @@ class OptData(np.ndarray):
         data.cov_mat = data.cov_mat[start:stop, start:stop]
 
         return data
+
+    def to_pickle(self, path: str):
+        """
+        Saves the OptData object as a pickle file
+
+        Parameters
+        ----------
+        path: str
+            file path of the pickle file
+        """
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
         """
