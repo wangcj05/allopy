@@ -1,3 +1,4 @@
+import os
 import pickle
 from base64 import b64encode
 from pathlib import Path
@@ -28,7 +29,11 @@ def fetch_opt_data_test_file(name: str) -> Optional[OptData]:
     if name not in _files:
         raise ValueError(f"Unknown file: {name}")
 
-    p = Path.home().joinpath(".allopy", "test-data")
+    if os.getenv("IS_TRAVIS") == "1":
+        p = Path.cwd().joinpath(".allopy")
+    else:
+        p = Path.home().joinpath(".allopy", "test-data")
+
     if not p.exists():
         p.mkdir(777, True, True)
 
