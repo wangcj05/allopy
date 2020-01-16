@@ -10,13 +10,12 @@ branches:
 
 env:
   global:
+    - IS_TRAVIS="1"  # used in test
     - COVERAGE=false
-    - secure: "FYpTesGG7xkAauux8kxImmPC8/0osoUXFimhosZOQyi8qc91qURyqhD7L9H/Xmokr+z9cIGUkp/tg6yHiipTB+z65+2I8nNt+zMi/n835XIVr83dbSyQysc8jK1jdUZdwnt83v8FrgveK9YAaylu0dU2c/LDQmsO7FUg06HZS+1QZOUdpLWFknHusA5TdhvzZfmmjwbJCde+jQhhpzkQ/YrWCMbW2WgAPvN2ofEL5k3QlXKzgCe4iayQYHwtpHYejQVq7KM+PiyptuekXZNWvyvMk8a/kqs7XXo09V/jsdg32eP3q2cwVSipfVKhLobxvtL1iY5bEGbA24cdHwvjsr4tKcRsXSAglhkDUuIsGPQJedG6tB3fuA6egvQE5O/ZX8ORhH7wu5EkyzOIBdqPNk7SpshckhXv/zuNTdVjojGmh0PgUrfmTu4HXEyr/r5E7TvwljINncsR1+Xypgdj3X9QDmWfjduyEFC2plgEQHpui7tVOPR2wpPrsggZsrzfdNRsJ6ZpUAhXuAgDCt2iISkNVjDg7gBLf08QHgafjfhFW6Xh0Ci01akdK7k5GCC7zqnl3rON1yBEmXF3t57yqTNPEyYepxJYjQCPZYu/2z+hxs6Edo0aRmUaKTDjZXtK2XgX2Fk01ImZL4dREwI2Yu+/y+JyRBjiajp7mYXC7Pg="
-    - secure: "AOoJA80phQcMXvoGxXrBfDHN3aSgunplTDOYrf0coRJRJ+Mk8bdsWj8OuBwziWvTdWfc0B2uZg/gMDR4Qe4Wc96uH5HJrxbou3/GS9Gr2XSSGy00SjCuTCKkgo47tfFgtPnabZ/QIP3TG67DuESxwFE3a31VFCCFMJy33MFzSEiBuDzNwuZnueuYRp/vWX1l7eaRFsPVq+O0SKkH8KGLGM3b9/lo2Xci1O/M951CVcK0fh8hirmPjGavWGlc8MF5skMg2HqpgEY9mAn6+CidWNqvTvEFmnMARnz+0iwAq/iuEFbXIoSbYZi7QafEZWau5NEUlRrXywyF+ZivjcvQ54FQgmMnHTvM2gM0z95bEpTG8dSZzfRHhIEzu9GlCN/7VwF+ZnmHcZaqftNPAXEx5iFT/6N3yoFRPzrp+JSObAqppLW+QIFIAvpeeoEaOtIRaZJtk1uvgQ7tiz69Y0ZfJyYBgGj09OiQLQ/hCxmV9OlJgRqUwXobk3vAV4en305eJ8U5ChqmnjfObmUfOjVChi/pv/AVwZT9dqsfupTtdMdk/tQHehnp6npfLxCGSCAKyqm5rib5AopuOTER4wn4iqXUEv7ERL7lRG0UI79zqcrYc5yV0orNleS5fQepqeEhoxUQ3ga9A8bbJwzOtmlJhVdkZnP3kUXAnGlfQNbaA80="
+    - secure: "gFr+lW7FV9ELhQJU3GKeyq/19trflHEO/QzEpgJPFlLm/VdbaxBBvmEScMK7dFoXIbG73TaEtdnWqRw2lo8p+3l4/G+6MyetGBJwIPoJmfU/4X+4H25P4LTZfnwC5dRgO3Mw1qas9ECfiy52ehgdw1I/uIr2xaC0HiNn1B4XDCl9TlCWBa1U2SWvu2xzm2z7zbStyfw9oaJswWiuJG3fpcCKP31IwgV0MSaSRbV9+hY6vKXz4EwmoypLdJZGN1BdtUDVxEP9myJ/pxFx+pUen8HXKvJFsuLfaeDF4hEdfn0P3ihzNj0UrGGJ295icRAqwgJRO/lJL1FE1LSS7cawgRUf5iCZi3UOyogIt9/gWcjaRcd+XVv35upCafxEcpGBj01ejh0uEuB2OFp+8y8vjwOs3I6dxJhu8CN9AKw3p5lDZpOUxP3fr5gsKhU+x3HqxGBitpgKfd8ai25U0LjktfzvhZy2dRFFCu+D01SbY+UbKTpYLT08FagPTXbuHCiq3tT5aaOnv3le2WD8y2VCxRl1qBh3u9yZOB+aPCzAVFhA/l68w0/VpoWV2w9FKmUWBWjlAGe3b512GGjG/QD5g0l7Y+4OJAFIPneWF3Ome6StzWXnQUCyz9ICVMsYhhWOnkogUZttpNGqBVOTPAsDc853UE+eOvYn7+n3O3mou9k="
 
 matrix:
   include:
-    - python: 3.6
     - python: 3.7
       env:
         - COVERAGE=true
@@ -47,9 +46,9 @@ after_success:
   - |
     if [[ ! -z "$TRAVIS_TAG" ]]; then
       echo "Building and uploading package to anaconda"
+      mkdir -p dists
       conda install anaconda-client conda-build conda-verify
-      anaconda login --username $ANACONDA_USERNAME --password $ANACONDA_PASSWORD
-      conda build --output-folder dists conda.recipe
+      conda build --token ${CONDA_TOKEN} --user danielbok --output-folder dists conda.recipe
     fi
 
 deploy:
@@ -61,4 +60,3 @@ deploy:
     skip_existing: true
     on:
       tags: true
-      condition: "$OSTYPE" == "darwin*"
