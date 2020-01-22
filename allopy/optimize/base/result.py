@@ -15,6 +15,7 @@ class Result:
         self.constraint_values = []
 
         self._x: Optional[np.ndarray] = None
+        self.is_optimized = False
 
     @property
     def obj_value(self):
@@ -30,7 +31,12 @@ class Result:
 
     @x.setter
     def x(self, solution: np.ndarray):
+        self.is_optimized = True
         self._x = solution
+
+    @property
+    def has_violations(self):
+        return len(self.violations) > 0
 
     def set_constraints(self, constraints: ConstraintMap, eps: float):
         assert self.x is not None

@@ -1,3 +1,4 @@
+import warnings
 from inspect import isfunction
 from typing import Callable, List, Optional, Union
 
@@ -14,6 +15,8 @@ from .summary import RegretSummary
 from .types import ConFunc, ObjFunc
 
 __all__ = ['RegretOptimizer']
+
+from ...exceptions import NotOptimizedError
 
 
 class RegretOptimizer:
@@ -154,8 +157,8 @@ class RegretOptimizer:
         self._prob = np.ones(num_scenarios) / num_scenarios if prob is None else np.asarray(prob)
 
         # result formatting options
-        self._result = None
-        self._solution = None
+        self._result: Optional[RegretResult] = None
+        self._solution: Optional[RegretOptimizerSolution] = None
 
         assert isinstance(max_attempts, int) and max_attempts > 0, 'max_attempts must be an integer >= 1'
         self._max_attempts = max_attempts
@@ -455,13 +458,19 @@ class RegretOptimizer:
         self._max_attempts = value
 
     @property
+    def has_violations(self):
+        if self._solution is None or self._result is None:
+            raise NotOptimizedError
+        return self._result.has_violations
+
+    @property
     def result(self) -> RegretResult:
         return self._result
 
     @property
     def solution(self) -> "RegretOptimizerSolution":
-        if self._solution is None:
-            raise RuntimeError("Model has not been optimized yet")
+        if self.has_violations:
+            warnings.warn("Optimizer did not find feasible solution")
         return self._solution
 
     def set_meta(self, *,

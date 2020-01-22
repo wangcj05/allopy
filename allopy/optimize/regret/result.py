@@ -60,6 +60,10 @@ class RegretResult:
         self._assets = value
 
     @property
+    def has_violations(self):
+        return len(self.violations) > 0
+
+    @property
     def scenarios(self):
         return self._scenarios
 

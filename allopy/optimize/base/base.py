@@ -1,4 +1,5 @@
 import inspect
+import warnings
 from typing import Callable, Optional, Union
 
 import nlopt as nl
@@ -6,6 +7,7 @@ import numpy as np
 from copulae.types import Numeric
 
 from allopy import get_option
+from allopy.exceptions import NotOptimizedError
 from allopy.types import OptArray, OptNumeric
 from .constraint import ConstraintFunc, ConstraintMap
 from .initial_points import InitialPointGenerator
@@ -561,6 +563,20 @@ class BaseOptimizer:
         self._model.set_stopval(validate_tolerance(stopval))
         return self
 
+    @property
+    def has_violations(self):
+        if not self._result.is_optimized:
+            raise NotOptimizedError
+
+        return self._result.has_violations
+
+    @property
+    def solution(self):
+        if self.has_violations:
+            warnings.warn("Optimizer did not find feasible solution")
+        return self._result.x
+
+    @property
     def summary(self):
         """Prints a summary report of the optimizer"""
 
